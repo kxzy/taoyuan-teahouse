@@ -1,0 +1,10 @@
+{
+  "name": "taoyuan-teahouse",
+  "uuid": "2d4d6ab2-d74f-4c20-99f1-2f3b9b402c01",
+  "version": "3.8.8",
+  "creator": {
+    "version": "3.8.8"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
