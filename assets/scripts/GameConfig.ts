@@ -7,20 +7,21 @@
   PeachBrew = 'peach_brew',
 }
 
+// 资源正在从扁平目录迁移到分组目录，新路径优先，保留旧路径作为兼容回退。
 export const TEAHOUSE_TEXTURE_PATHS = {
-  background: ['image/bg_teahouse/texture', 'image/茶铺/texture'],
-  seat: ['image/seat_table/texture', 'image/桌椅/texture'],
-  counter: ['image/workstation_counter/texture', 'image/柜台/texture', 'image/counter/texture'],
-  woodSign: ['image/decor_wood_sign/texture', 'image/旧木招牌/texture', 'image/招牌/texture'],
-  paperLamp: ['image/decor_paper_lamp/texture', 'image/纸灯/texture', 'image/灯笼/texture'],
-  celadonSet: ['image/decor_celadon_set/texture', 'image/青瓷茶具/texture', 'image/茶具/texture'],
-  flowerVase: ['image/decor_flower_vase/texture', 'image/山花瓶/texture', 'image/花瓶/texture'],
-  screen: ['image/decor_screen/texture', 'image/山水屏风/texture', 'image/屏风/texture'],
-  scholar: ['image/customer_scholar/texture', 'image/书生/texture'],
-  greenTea: ['image/tea_green/texture', 'image/茉莉绿茶/texture'],
-  blackTea: ['image/tea_black/texture', 'image/蜜香红茶/texture'],
-  dialog: ['image/ui_dialog/texture', 'image/对话框/texture'],
-  button: ['image/ui_button/texture', 'image/九宫格/texture'],
+  background: ['image/background/bg_teahouse/texture', 'image/bg_teahouse/texture'],
+  seat: ['image/furniture/seat_table/texture', 'image/seat_table/texture'],
+  counter: ['image/workstation_counter/texture', 'image/counter/texture'],
+  woodSign: ['image/decor_wood_sign/texture'],
+  paperLamp: ['image/decor_paper_lamp/texture'],
+  celadonSet: ['image/decor_celadon_set/texture'],
+  flowerVase: ['image/decor_flower_vase/texture'],
+  screen: ['image/decor_screen/texture'],
+  scholar: ['image/customer/customer_scholar/texture', 'image/customer_scholar/texture'],
+  greenTea: ['image/tea/tea_green/texture', 'image/tea_green/texture'],
+  blackTea: ['image/tea/tea_black/texture', 'image/tea_black/texture'],
+  dialog: ['image/ui/ui_dialog/texture', 'image/ui_dialog/texture'],
+  button: ['image/ui/ui_button/texture', 'image/ui_button/texture'],
 } as const;
 
 export type TeahouseTextureKey = keyof typeof TEAHOUSE_TEXTURE_PATHS;
@@ -96,7 +97,7 @@ export const TEAHOUSE_FURNITURE: Record<string, TeahouseFurnitureConfig> = {
   workstationCounter: {
     id: 'workstation_counter',
     nodeName: 'WorkstationPanel',
-    fallbackNodeNames: ['WorkstationCounter', 'Counter_柜台', 'WorkstationPanel'],
+    fallbackNodeNames: ['WorkstationCounter', 'WorkstationPanel'],
     x: 0,
     y: -272,
     width: 520,

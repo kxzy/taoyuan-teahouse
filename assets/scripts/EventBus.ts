@@ -1,3 +1,5 @@
+import { Vec3 } from 'cc';
+import { FarmPlotId } from './FarmConfig';
 import { RecipeId } from './GameConfig';
 
 type EventHandler<T = unknown> = (payload: T) => void;
@@ -13,6 +15,24 @@ export interface OfflineRewardSummary {
   sugar: number;
   flower: number;
   fruit: number;
+}
+
+export interface ReviveOfferPayload {
+  coinCost: number;
+  restoreReputation: number;
+  customerCount: number;
+  reason: 'reputation_zero' | 'grade_risk';
+}
+
+export interface RequestRevivePayload {
+  method: 'token' | 'ad' | 'skip';
+  coinCost: number;
+}
+
+export interface ReviveSuccessPayload {
+  method: 'token' | 'ad';
+  restoreReputation: number;
+  customerCount: number;
 }
 
 export interface UnlockSummary {
@@ -80,19 +100,76 @@ export interface HudViewModel {
   mainTabTexts: Partial<Record<MainTabId, string>>;
 }
 
+export interface PlayEffectPayload {
+  type: 'coinFly' | 'emotion';
+  position: Vec3;
+  value?: number;
+  emotionType?: 'happy' | 'angry';
+}
+
+export interface OrderCompletedPayload {
+  recipeId: string;
+  income: number;
+  position: Vec3;
+  heatQuality: 'normal' | 'perfect';
+}
+
+export interface ShopUpgradedPayload {
+  level: number;
+}
+
+export interface ResearchCompletedPayload {
+  name: string;
+  tier: string;
+}
+
+export interface DaySettledPayload {
+  day: number;
+  grade: string;
+  revenue: number;
+  servedCups: number;
+  lostCustomers: number;
+  wastedTea: number;
+}
+
+export interface FarmPlotChangedPayload {
+  plotId: FarmPlotId;
+  level: number;
+  unlocked: boolean;
+}
+
+export interface WorkstationQteStatePayload {
+  active: boolean;
+  progress: number;
+  windowStart: number;
+  windowEnd: number;
+  recipeName?: string;
+}
+
 export enum GameEventName {
   HudMessage = 'hud:message',
   HudViewModel = 'hud:view-model',
   PopupOfflineReward = 'popup:offline-reward',
+  PopupReviveOffer = 'popup:revive-offer',
   PopupUpgradeUnlock = 'popup:upgrade-unlock',
   PopupResearchResult = 'popup:research-result',
   SupplyShopViewModel = 'supply-shop:view-model',
   CollectionViewModel = 'collection:view-model',
+  PlayEffect = 'fx:play-effect',
+  OrderCompleted = 'game:order-completed',
+  ShopUpgraded = 'game:shop-upgraded',
+  ResearchCompleted = 'game:research-completed',
+  DaySettled = 'game:day-settled',
+  FarmPlotChanged = 'farm:plot-changed',
+  WorkstationQteState = 'workstation:qte-state',
   RequestMakeRecipe = 'request:make-recipe',
+  RequestRevive = 'request:revive',
+  RequestDoubleOfflineReward = 'request:double-offline-reward',
   RequestPrimaryAction = 'request:primary-action',
   RequestSwitchMainTab = 'request:switch-main-tab',
   RequestOpenSupplyShop = 'request:open-supply-shop',
   RequestBuySupplyItem = 'request:buy-supply-item',
+  OnReviveSuccess = 'game:revive-success',
 }
 
 export class EventBus {

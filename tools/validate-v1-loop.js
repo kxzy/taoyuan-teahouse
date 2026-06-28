@@ -79,7 +79,7 @@ const checks = [
   {
     name: '完美火候接入制茶与收入消息',
     file: 'auto',
-    pattern: /calculateHeatResult[\s\S]*完美火候[\s\S]*calculateHeatBonus/,
+    pattern: /result\.quality === 'perfect'[\s\S]*完美火候[\s\S]*calculateHeatBonus[\s\S]*formatServeMessage/,
   },
   {
     name: 'UIManagerRoot 有固定尺寸',

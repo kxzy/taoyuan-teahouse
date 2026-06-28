@@ -1,4 +1,5 @@
 import { _decorator, Component, Label } from 'cc';
+import { EventBus, GameEventName, WorkstationQteStatePayload } from './EventBus';
 import { RecipeConfig } from './GameConfig';
 import { SimpleProgressBar } from './SimpleProgressBar';
 
@@ -7,6 +8,12 @@ const { ccclass, property } = _decorator;
 export interface TeaOrder {
   recipe: RecipeConfig;
   remainingSeconds: number;
+}
+
+export interface TeaReadyResult {
+  recipe: RecipeConfig;
+  quality: 'normal' | 'perfect';
+  manualTriggered: boolean;
 }
 
 @ccclass('Workstation')
@@ -24,15 +31,19 @@ export class Workstation extends Component {
   private queue: TeaOrder[] = [];
   private currentOrder: TeaOrder | null = null;
   private currentTotalSeconds = 0;
-  private onTeaReadyCallback: ((recipe: RecipeConfig) => void) | null = null;
+  private onTeaReadyCallback: ((result: TeaReadyResult) => void) | null = null;
   private lastRenderedQueueText = '';
   private lastRenderedStationLevel = -1;
   private lastRenderedSpeedMultiplier = -1;
   private lastRenderedQueueLength = -1;
   private lastRenderedCurrentRecipeId = '';
   private lastRenderedRemainingSecond = -1;
+  private qteWindowActive = false;
 
-  setTeaReadyCallback(callback: (recipe: RecipeConfig) => void): void {
+  private static readonly PERFECT_WINDOW_START = 0.8;
+  private static readonly PERFECT_WINDOW_END = 0.95;
+
+  setTeaReadyCallback(callback: (result: TeaReadyResult) => void): void {
     this.onTeaReadyCallback = callback;
   }
 
@@ -66,13 +77,10 @@ export class Workstation extends Component {
     }
 
     this.currentOrder.remainingSeconds -= deltaTime * this.speedMultiplier;
-    if (this.currentOrder.remainingSeconds <= 0) {
-      const finishedRecipe = this.currentOrder.recipe;
-      this.currentOrder = null;
-      this.currentTotalSeconds = 0;
-      this.onTeaReadyCallback?.(finishedRecipe);
-      this.tryStartNext();
-      this.refreshView(true);
+    const progress = this.getCurrentProgress();
+    this.syncQteWindow(progress);
+    if (progress >= Workstation.PERFECT_WINDOW_END) {
+      this.finishCurrentOrder('normal', false);
       return;
     }
 
@@ -95,7 +103,22 @@ export class Workstation extends Component {
     this.queue.length = 0;
     this.currentOrder = null;
     this.currentTotalSeconds = 0;
+    this.syncQteWindow(0, true);
     this.refreshView(true);
+  }
+
+  manualFinishTea(): TeaReadyResult | null {
+    if (!this.currentOrder) {
+      return null;
+    }
+
+    const progress = this.getCurrentProgress();
+    if (progress < Workstation.PERFECT_WINDOW_START) {
+      return null;
+    }
+
+    const quality = progress <= Workstation.PERFECT_WINDOW_END ? 'perfect' : 'normal';
+    return this.finishCurrentOrder(quality, true);
   }
 
   private tryStartNext(): void {
@@ -105,6 +128,7 @@ export class Workstation extends Component {
 
     this.currentOrder = this.queue.shift() ?? null;
     this.currentTotalSeconds = this.currentOrder?.recipe.makeSeconds ?? 0;
+    this.syncQteWindow(0, true);
     this.refreshView(true);
   }
 
@@ -154,5 +178,54 @@ export class Workstation extends Component {
     }
 
     this.progressBar.progress = 1 - this.currentOrder.remainingSeconds / this.currentTotalSeconds;
+  }
+
+  private finishCurrentOrder(quality: 'normal' | 'perfect', manualTriggered: boolean): TeaReadyResult | null {
+    if (!this.currentOrder) {
+      return null;
+    }
+
+    const result: TeaReadyResult = {
+      recipe: this.currentOrder.recipe,
+      quality,
+      manualTriggered,
+    };
+
+    this.currentOrder = null;
+    this.currentTotalSeconds = 0;
+    this.syncQteWindow(0, true);
+    this.onTeaReadyCallback?.(result);
+    this.tryStartNext();
+    this.refreshView(true);
+    return result;
+  }
+
+  private getCurrentProgress(): number {
+    if (!this.currentOrder || this.currentTotalSeconds <= 0) {
+      return 0;
+    }
+    const progress = 1 - this.currentOrder.remainingSeconds / this.currentTotalSeconds;
+    return Math.max(0, Math.min(1, progress));
+  }
+
+  private syncQteWindow(progress: number, forceInactive = false): void {
+    const nextActive = !forceInactive
+      && !!this.currentOrder
+      && progress >= Workstation.PERFECT_WINDOW_START
+      && progress < Workstation.PERFECT_WINDOW_END;
+
+    if (nextActive === this.qteWindowActive) {
+      return;
+    }
+
+    this.qteWindowActive = nextActive;
+    const payload: WorkstationQteStatePayload = {
+      active: nextActive,
+      progress,
+      windowStart: Workstation.PERFECT_WINDOW_START,
+      windowEnd: Workstation.PERFECT_WINDOW_END,
+      recipeName: this.currentOrder?.recipe.name,
+    };
+    EventBus.emit(GameEventName.WorkstationQteState, payload);
   }
 }

@@ -1,0 +1,134 @@
+{
+  "ver": "1.0.27",
+  "importer": "image",
+  "imported": true,
+  "uuid": "e56c2a34-9a9e-4ddb-aedc-91464b0cb99b",
+  "files": [
+    ".json",
+    ".png"
+  ],
+  "subMetas": {
+    "6c48a": {
+      "importer": "texture",
+      "uuid": "e56c2a34-9a9e-4ddb-aedc-91464b0cb99b@6c48a",
+      "displayName": "BrewButton",
+      "id": "6c48a",
+      "name": "texture",
+      "userData": {
+        "wrapModeS": "clamp-to-edge",
+        "wrapModeT": "clamp-to-edge",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 0,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "e56c2a34-9a9e-4ddb-aedc-91464b0cb99b",
+        "visible": false
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "f9941": {
+      "importer": "sprite-frame",
+      "uuid": "e56c2a34-9a9e-4ddb-aedc-91464b0cb99b@f9941",
+      "displayName": "BrewButton",
+      "id": "f9941",
+      "name": "spriteFrame",
+      "userData": {
+        "trimThreshold": 1,
+        "rotated": false,
+        "offsetX": -0.5,
+        "offsetY": 1.5,
+        "trimX": 0,
+        "trimY": 8,
+        "width": 158,
+        "height": 57,
+        "rawWidth": 159,
+        "rawHeight": 76,
+        "borderTop": 0,
+        "borderBottom": 0,
+        "borderLeft": 0,
+        "borderRight": 0,
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivotX": 0.5,
+        "pivotY": 0.5,
+        "meshType": 0,
+        "vertices": {
+          "rawPosition": [
+            -79,
+            -28.5,
+            0,
+            79,
+            -28.5,
+            0,
+            -79,
+            28.5,
+            0,
+            79,
+            28.5,
+            0
+          ],
+          "indexes": [
+            0,
+            1,
+            2,
+            2,
+            1,
+            3
+          ],
+          "uv": [
+            0,
+            68,
+            158,
+            68,
+            0,
+            11,
+            158,
+            11
+          ],
+          "nuv": [
+            0,
+            0.14473684210526316,
+            0.9937106918238994,
+            0.14473684210526316,
+            0,
+            0.8947368421052632,
+            0.9937106918238994,
+            0.8947368421052632
+          ],
+          "minPos": [
+            -79,
+            -28.5,
+            0
+          ],
+          "maxPos": [
+            79,
+            28.5,
+            0
+          ]
+        },
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "e56c2a34-9a9e-4ddb-aedc-91464b0cb99b@6c48a",
+        "atlasUuid": "",
+        "trimType": "auto"
+      },
+      "ver": "1.0.12",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "type": "sprite-frame",
+    "fixAlphaTransparencyArtifacts": false,
+    "hasAlpha": true,
+    "redirect": "e56c2a34-9a9e-4ddb-aedc-91464b0cb99b@6c48a"
+  }
+}
