@@ -1,7 +1,11 @@
-﻿import { _decorator, Color, Component, Label, Node, ProgressBar, Vec3 } from 'cc';
+import { _decorator, Color, Component, Label, Node, Vec3 } from 'cc';
 import { RecipeConfig } from './GameConfig';
+import { SimpleProgressBar } from './SimpleProgressBar';
 
 const { ccclass, property } = _decorator;
+
+const CUSTOMER_URGENT_COLOR = new Color(185, 48, 28, 255);
+const CUSTOMER_NORMAL_COLOR = new Color(78, 42, 24, 255);
 
 export enum CustomerState {
   WalkingToSeat = 'WalkingToSeat',
@@ -28,8 +32,8 @@ export class Customer extends Component {
   @property(Node)
   orderBubbleNormalNode: Node | null = null;
 
-  @property(ProgressBar)
-  patienceBar: ProgressBar | null = null;
+  @property(SimpleProgressBar)
+  patienceBar: SimpleProgressBar | null = null;
 
   state: CustomerState = CustomerState.WalkingToSeat;
   recipe: RecipeConfig | null = null;
@@ -44,8 +48,20 @@ export class Customer extends Component {
   moveSpeed = 280;
 
   private onLostCallback: ((customer: Customer) => void) | null = null;
+  private onRecycleCallback: ((customer: Customer) => void) | null = null;
   private targetPosition: Vec3 | null = null;
   private exitPosition: Vec3 | null = null;
+  private lastRenderedState: CustomerState | null = null;
+  private lastRenderedPatienceSecond = -1;
+  private lastRenderedRemainingCups = -1;
+  private lastRenderedServedCups = -1;
+  private lastRenderedUrgent = false;
+  private lastRenderedText = '';
+  private lastRenderedColor = '';
+  private lastRenderedBadgeVisible: boolean | null = null;
+  private lastRenderedBubbleVisible: boolean | null = null;
+  private lastRenderedWarningVisible: boolean | null = null;
+  private lastRenderedNormalVisible: boolean | null = null;
 
   init(options: {
     recipe: RecipeConfig;
@@ -58,6 +74,7 @@ export class Customer extends Component {
     exitPosition?: Vec3;
     moveSpeed?: number;
     onLost: (customer: Customer) => void;
+    onRecycle?: (customer: Customer) => void;
   }): void {
     this.recipe = options.recipe;
     this.customerName = options.customerName ?? '客人';
@@ -72,24 +89,51 @@ export class Customer extends Component {
     this.exitPosition = options.exitPosition?.clone() ?? null;
     this.moveSpeed = options.moveSpeed ?? this.moveSpeed;
     this.onLostCallback = options.onLost;
+    this.onRecycleCallback = options.onRecycle ?? null;
     this.state = this.targetPosition ? CustomerState.WalkingToSeat : CustomerState.Waiting;
-    this.refreshView();
+    this.node.active = true;
+    this.resetRenderCache();
+    this.refreshView(true);
+  }
+
+  resetForReuse(): void {
+    this.recipe = null;
+    this.customerName = '客人';
+    this.groupSize = 1;
+    this.totalCups = 1;
+    this.remainingCups = 1;
+    this.spendMultiplier = 1;
+    this.patienceSeconds = 18;
+    this.remainingPatience = 18;
+    this.seatIndex = -1;
+    this.moveSpeed = 280;
+    this.state = CustomerState.WalkingToSeat;
+    this.onLostCallback = null;
+    this.onRecycleCallback = null;
+    this.targetPosition = null;
+    this.exitPosition = null;
+    this.node.active = false;
+    this.resetRenderCache();
+    this.applyBubbleState(false, false, false, true);
+    this.updateUrgentBadge(false, true);
+    this.updateOrderLabel('', 'normal', true);
+    if (this.patienceBar) {
+      this.patienceBar.progress = 0;
+    }
   }
 
   update(deltaTime: number): void {
     if (this.state === CustomerState.WalkingToSeat) {
       this.moveTowardTarget(deltaTime, this.targetPosition, () => {
         this.state = CustomerState.Waiting;
-        this.refreshView();
+        this.refreshView(true);
       });
       return;
     }
 
     if (this.state === CustomerState.Leaving || this.state === CustomerState.Served) {
       this.moveTowardTarget(deltaTime, this.exitPosition, () => {
-        if (this.node && this.node.isValid) {
-          this.node.destroy();
-        }
+        this.onRecycleCallback?.(this);
       });
       return;
     }
@@ -102,17 +146,22 @@ export class Customer extends Component {
     if (this.remainingPatience <= 0) {
       this.remainingPatience = 0;
       this.state = CustomerState.Lost;
-      this.refreshView();
+      this.refreshView(true);
       this.onLostCallback?.(this);
       return;
     }
 
-    this.refreshView();
+    this.updatePatienceBar();
+    const currentSecond = Math.ceil(this.remainingPatience);
+    const urgent = this.isUrgent();
+    if (currentSecond !== this.lastRenderedPatienceSecond || urgent !== this.lastRenderedUrgent) {
+      this.refreshView();
+    }
   }
 
   leave(): void {
     this.state = CustomerState.Leaving;
-    this.refreshView();
+    this.refreshView(true);
   }
 
   canReceive(recipeId: string): boolean {
@@ -128,7 +177,7 @@ export class Customer extends Component {
     if (this.remainingCups <= 0) {
       this.state = CustomerState.Served;
     }
-    this.refreshView();
+    this.refreshView(true);
     return Math.floor(this.recipe.price * this.spendMultiplier);
   }
 
@@ -169,53 +218,119 @@ export class Customer extends Component {
     this.node.setPosition(current.add(direction));
   }
 
-  private refreshView(): void {
+  private refreshView(force = false): void {
     const isUrgent = this.isUrgent();
     const isWaiting = this.state === CustomerState.Waiting;
-    if (this.orderBubbleNode) {
-      this.orderBubbleNode.active = this.state !== CustomerState.Leaving && this.state !== CustomerState.Served;
-    }
-    if (this.orderBubbleWarningNode) {
-      this.orderBubbleWarningNode.active = isUrgent;
-    }
-    if (this.orderBubbleNormalNode) {
-      this.orderBubbleNormalNode.active = !isUrgent;
+    const bubbleVisible = this.state !== CustomerState.Leaving && this.state !== CustomerState.Served;
+
+    this.applyBubbleState(bubbleVisible, isUrgent, !isUrgent, force);
+    this.updateUrgentBadge(isUrgent && isWaiting, force);
+    this.updatePatienceBar();
+
+    if (!force && !this.shouldRefreshOrderLabel(isUrgent)) {
+      return;
     }
 
-    if (this.orderLabel) {
-      if (this.recipe) {
-        if (this.state === CustomerState.Lost) {
-          this.orderLabel.string = `${this.customerName}×${this.groupSize}\n等太久，生气离开`;
-        } else if (this.state === CustomerState.WalkingToSeat) {
-          const seatText = this.seatIndex >= 0 ? `${this.seatIndex + 1}桌` : '座位';
-          this.orderLabel.string = `去${seatText}\n${this.recipe.name}×${this.remainingCups}\n点单中`;
-        } else {
-          const seatText = this.seatIndex >= 0 ? `${this.seatIndex + 1}桌` : '待入座';
-          const urgency = isUrgent ? '🔥急' : `${seatText}`;
-          const secondsText = Math.ceil(this.remainingPatience);
-          const cupsText = `${this.getServedCups()}/${this.totalCups}`;
-          this.orderLabel.string = `${urgency}\n${this.recipe.name}×${this.remainingCups}\n${secondsText}秒｜${cupsText}`;
-        }
-      } else {
-        this.orderLabel.string = '';
-      }
+    const text = this.buildOrderText(isUrgent);
+    this.updateOrderLabel(text, isUrgent ? 'urgent' : 'normal', force);
+    this.lastRenderedState = this.state;
+    this.lastRenderedPatienceSecond = Math.ceil(this.remainingPatience);
+    this.lastRenderedRemainingCups = this.remainingCups;
+    this.lastRenderedServedCups = this.getServedCups();
+    this.lastRenderedUrgent = isUrgent;
+  }
 
-      this.orderLabel.color = isUrgent
-        ? new Color(185, 48, 28, 255)
-        : new Color(78, 42, 24, 255);
+  private shouldRefreshOrderLabel(isUrgent: boolean): boolean {
+    return this.state !== this.lastRenderedState
+      || this.remainingCups !== this.lastRenderedRemainingCups
+      || this.getServedCups() !== this.lastRenderedServedCups
+      || Math.ceil(this.remainingPatience) !== this.lastRenderedPatienceSecond
+      || isUrgent !== this.lastRenderedUrgent;
+  }
+
+  private buildOrderText(isUrgent: boolean): string {
+    if (!this.recipe) {
+      return '';
     }
 
-    if (this.urgentBadgeLabel) {
-      const showUrgentBadge = isUrgent && isWaiting;
-      const badgeNode = this.urgentBadgeLabel.node.parent ?? this.urgentBadgeLabel.node;
+    if (this.state === CustomerState.Lost) {
+      return `${this.customerName}×${this.groupSize}\n等太久，生气离开`;
+    }
+
+    if (this.state === CustomerState.WalkingToSeat) {
+      const seatText = this.seatIndex >= 0 ? `${this.seatIndex + 1}桌` : '座位';
+      return `去${seatText}\n${this.recipe.name}×${this.remainingCups}\n点单中`;
+    }
+
+    const seatText = this.seatIndex >= 0 ? `${this.seatIndex + 1}桌` : '待入座';
+    const urgency = isUrgent ? '🔥急' : seatText;
+    const secondsText = Math.max(0, Math.ceil(this.remainingPatience));
+    const cupsText = `${this.getServedCups()}/${this.totalCups}`;
+    return `${urgency}\n${this.recipe.name}×${this.remainingCups}\n${secondsText}秒｜${cupsText}`;
+  }
+
+  private applyBubbleState(bubbleVisible: boolean, warningVisible: boolean, normalVisible: boolean, force: boolean): void {
+    if (this.orderBubbleNode && (force || this.lastRenderedBubbleVisible !== bubbleVisible)) {
+      this.orderBubbleNode.active = bubbleVisible;
+      this.lastRenderedBubbleVisible = bubbleVisible;
+    }
+    if (this.orderBubbleWarningNode && (force || this.lastRenderedWarningVisible !== warningVisible)) {
+      this.orderBubbleWarningNode.active = warningVisible;
+      this.lastRenderedWarningVisible = warningVisible;
+    }
+    if (this.orderBubbleNormalNode && (force || this.lastRenderedNormalVisible !== normalVisible)) {
+      this.orderBubbleNormalNode.active = normalVisible;
+      this.lastRenderedNormalVisible = normalVisible;
+    }
+  }
+
+  private updateUrgentBadge(showUrgentBadge: boolean, force: boolean): void {
+    if (!this.urgentBadgeLabel) {
+      return;
+    }
+
+    const badgeNode = this.urgentBadgeLabel.node.parent ?? this.urgentBadgeLabel.node;
+    if (force || this.lastRenderedBadgeVisible !== showUrgentBadge) {
       badgeNode.active = showUrgentBadge;
       this.urgentBadgeLabel.node.active = showUrgentBadge;
       this.urgentBadgeLabel.string = showUrgentBadge ? '急' : '';
+      this.lastRenderedBadgeVisible = showUrgentBadge;
+    }
+  }
+
+  private updateOrderLabel(text: string, colorKey: 'urgent' | 'normal', force: boolean): void {
+    if (!this.orderLabel) {
+      return;
     }
 
-    if (this.patienceBar) {
-      const ratio = this.getPatienceRatio();
-      this.patienceBar.progress = ratio;
+    if (force || this.lastRenderedText !== text) {
+      this.orderLabel.string = text;
+      this.lastRenderedText = text;
     }
+
+    if (force || this.lastRenderedColor !== colorKey) {
+      this.orderLabel.color = colorKey === 'urgent' ? CUSTOMER_URGENT_COLOR : CUSTOMER_NORMAL_COLOR;
+      this.lastRenderedColor = colorKey;
+    }
+  }
+
+  private updatePatienceBar(): void {
+    if (this.patienceBar) {
+      this.patienceBar.progress = this.getPatienceRatio();
+    }
+  }
+
+  private resetRenderCache(): void {
+    this.lastRenderedState = null;
+    this.lastRenderedPatienceSecond = -1;
+    this.lastRenderedRemainingCups = -1;
+    this.lastRenderedServedCups = -1;
+    this.lastRenderedUrgent = false;
+    this.lastRenderedText = '';
+    this.lastRenderedColor = '';
+    this.lastRenderedBadgeVisible = null;
+    this.lastRenderedBubbleVisible = null;
+    this.lastRenderedWarningVisible = null;
+    this.lastRenderedNormalVisible = null;
   }
 }

@@ -1,5 +1,6 @@
-﻿import { _decorator, Component, Label, ProgressBar } from 'cc';
+import { _decorator, Component, Label } from 'cc';
 import { RecipeConfig } from './GameConfig';
+import { SimpleProgressBar } from './SimpleProgressBar';
 
 const { ccclass, property } = _decorator;
 
@@ -13,8 +14,8 @@ export class Workstation extends Component {
   @property(Label)
   queueLabel: Label | null = null;
 
-  @property(ProgressBar)
-  progressBar: ProgressBar | null = null;
+  @property(SimpleProgressBar)
+  progressBar: SimpleProgressBar | null = null;
 
   queueLimit = 3;
   speedMultiplier = 1;
@@ -24,6 +25,12 @@ export class Workstation extends Component {
   private currentOrder: TeaOrder | null = null;
   private currentTotalSeconds = 0;
   private onTeaReadyCallback: ((recipe: RecipeConfig) => void) | null = null;
+  private lastRenderedQueueText = '';
+  private lastRenderedStationLevel = -1;
+  private lastRenderedSpeedMultiplier = -1;
+  private lastRenderedQueueLength = -1;
+  private lastRenderedCurrentRecipeId = '';
+  private lastRenderedRemainingSecond = -1;
 
   setTeaReadyCallback(callback: (recipe: RecipeConfig) => void): void {
     this.onTeaReadyCallback = callback;
@@ -32,7 +39,7 @@ export class Workstation extends Component {
   setStationLevel(level: number, speedMultiplier: number): void {
     this.stationLevel = Math.max(1, Math.floor(level));
     this.speedMultiplier = Math.max(0.5, speedMultiplier);
-    this.refreshView();
+    this.refreshView(true);
   }
 
   enqueue(recipe: RecipeConfig): boolean {
@@ -47,13 +54,14 @@ export class Workstation extends Component {
       remainingSeconds: recipe.makeSeconds,
     });
     this.tryStartNext();
-    this.refreshView();
+    this.refreshView(true);
     return true;
   }
 
   update(deltaTime: number): void {
     if (!this.currentOrder) {
       this.tryStartNext();
+      this.updateProgressBar();
       return;
     }
 
@@ -64,9 +72,15 @@ export class Workstation extends Component {
       this.currentTotalSeconds = 0;
       this.onTeaReadyCallback?.(finishedRecipe);
       this.tryStartNext();
+      this.refreshView(true);
+      return;
     }
 
-    this.refreshView();
+    this.updateProgressBar();
+    const currentSecond = Math.max(0, Math.ceil(this.currentOrder.remainingSeconds));
+    if (currentSecond !== this.lastRenderedRemainingSecond) {
+      this.refreshView();
+    }
   }
 
   getQueueCount(): number {
@@ -81,7 +95,7 @@ export class Workstation extends Component {
     this.queue.length = 0;
     this.currentOrder = null;
     this.currentTotalSeconds = 0;
-    this.refreshView();
+    this.refreshView(true);
   }
 
   private tryStartNext(): void {
@@ -91,21 +105,54 @@ export class Workstation extends Component {
 
     this.currentOrder = this.queue.shift() ?? null;
     this.currentTotalSeconds = this.currentOrder?.recipe.makeSeconds ?? 0;
+    this.refreshView(true);
   }
 
-  private refreshView(): void {
-    if (this.queueLabel) {
-      const currentName = this.currentOrder?.recipe.name ?? '空闲';
-      const remainingText = this.currentOrder ? `｜剩${Math.max(0, Math.ceil(this.currentOrder.remainingSeconds))}秒` : '';
-      this.queueLabel.string = `制作台 Lv.${this.stationLevel}｜${currentName}${remainingText}\n速度×${this.speedMultiplier.toFixed(2)}｜排队 ${this.queue.length}/${this.queueLimit}`;
+  private refreshView(force = false): void {
+    this.updateProgressBar();
+
+    const currentRecipeId = this.currentOrder?.recipe.id ?? '';
+    const remainingSecond = this.currentOrder ? Math.max(0, Math.ceil(this.currentOrder.remainingSeconds)) : -1;
+    const shouldRefreshQueueLabel = force
+      || this.stationLevel !== this.lastRenderedStationLevel
+      || this.speedMultiplier !== this.lastRenderedSpeedMultiplier
+      || this.queue.length !== this.lastRenderedQueueLength
+      || currentRecipeId !== this.lastRenderedCurrentRecipeId
+      || remainingSecond !== this.lastRenderedRemainingSecond;
+
+    if (!shouldRefreshQueueLabel) {
+      return;
     }
 
-    if (this.progressBar) {
-      if (!this.currentOrder || this.currentTotalSeconds <= 0) {
-        this.progressBar.progress = 0;
-      } else {
-        this.progressBar.progress = 1 - this.currentOrder.remainingSeconds / this.currentTotalSeconds;
-      }
+    const nextQueueText = this.buildQueueText();
+    if (this.queueLabel && (force || nextQueueText !== this.lastRenderedQueueText)) {
+      this.queueLabel.string = nextQueueText;
+      this.lastRenderedQueueText = nextQueueText;
     }
+
+    this.lastRenderedStationLevel = this.stationLevel;
+    this.lastRenderedSpeedMultiplier = this.speedMultiplier;
+    this.lastRenderedQueueLength = this.queue.length;
+    this.lastRenderedCurrentRecipeId = currentRecipeId;
+    this.lastRenderedRemainingSecond = remainingSecond;
+  }
+
+  private buildQueueText(): string {
+    const currentName = this.currentOrder?.recipe.name ?? '空闲';
+    const remainingText = this.currentOrder ? `｜剩${Math.max(0, Math.ceil(this.currentOrder.remainingSeconds))}秒` : '';
+    return `制作台 Lv.${this.stationLevel}｜${currentName}${remainingText}\n速度×${this.speedMultiplier.toFixed(2)}｜排队 ${this.queue.length}/${this.queueLimit}`;
+  }
+
+  private updateProgressBar(): void {
+    if (!this.progressBar) {
+      return;
+    }
+
+    if (!this.currentOrder || this.currentTotalSeconds <= 0) {
+      this.progressBar.progress = 0;
+      return;
+    }
+
+    this.progressBar.progress = 1 - this.currentOrder.remainingSeconds / this.currentTotalSeconds;
   }
 }

@@ -394,15 +394,17 @@ function mergeRecipeStats(parsed?: RecipeStatSave[]): RecipeStatSave[] {
 }
 
 function mergeCollection(parsed?: Partial<CollectionSaveData>): CollectionSaveData {
+  const unlockedRecipeIds = parsed?.unlockedRecipeIds;
   return {
-    unlockedRecipeIds: Array.isArray(parsed?.unlockedRecipeIds) ? [...new Set(parsed.unlockedRecipeIds)].slice(0, 80) : [],
+    unlockedRecipeIds: Array.isArray(unlockedRecipeIds) ? [...new Set(unlockedRecipeIds)].slice(0, 80) : [],
     recipeStats: mergeRecipeStats(parsed?.recipeStats),
   };
 }
 
 function mergeAchievements(parsed?: Partial<AchievementSaveData>): AchievementSaveData {
+  const claimedAchievementIds = parsed?.claimedAchievementIds;
   return {
-    claimedAchievementIds: Array.isArray(parsed?.claimedAchievementIds) ? [...new Set(parsed.claimedAchievementIds)].slice(0, 100) : [],
+    claimedAchievementIds: Array.isArray(claimedAchievementIds) ? [...new Set(claimedAchievementIds)].slice(0, 100) : [],
   };
 }
 
@@ -424,10 +426,11 @@ function mergeDecoration(parsed?: Partial<DecorationSaveData>, legacyBeautyScore
 }
 
 function mergeSeason(parsed?: Partial<SeasonSaveData>): SeasonSaveData {
+  const claimedRewardTiers = parsed?.claimedRewardTiers;
   return {
     seasonId: parsed?.seasonId ?? DEFAULT_SEASON_DATA.seasonId,
     seasonExp: Math.max(0, Math.floor(parsed?.seasonExp ?? DEFAULT_SEASON_DATA.seasonExp)),
-    claimedRewardTiers: Array.isArray(parsed?.claimedRewardTiers) ? [...new Set(parsed.claimedRewardTiers)].slice(0, 100) : [],
+    claimedRewardTiers: Array.isArray(claimedRewardTiers) ? [...new Set(claimedRewardTiers)].slice(0, 100) : [],
     activeActivityId: parsed?.activeActivityId ?? DEFAULT_SEASON_DATA.activeActivityId,
     lastActivityDay: Math.max(0, Math.floor(parsed?.lastActivityDay ?? DEFAULT_SEASON_DATA.lastActivityDay)),
   };
@@ -461,6 +464,9 @@ function normalizeSaveData(data: GameSaveData): GameSaveData {
 }
 
 export class SaveManager {
+  private static pendingSaveData: GameSaveData | null = null;
+  private static saveTimer: ReturnType<typeof setTimeout> | null = null;
+
   static load(): GameSaveData {
     const raw = sys.localStorage.getItem(SAVE_KEY) ?? sys.localStorage.getItem('taoyuan_teahouse_demo_save_v1');
     if (!raw) {
@@ -530,10 +536,43 @@ export class SaveManager {
 
   static save(data: GameSaveData): void {
     const nextData = normalizeSaveData(data);
+    SaveManager.pendingSaveData = null;
+    if (SaveManager.saveTimer) {
+      clearTimeout(SaveManager.saveTimer);
+      SaveManager.saveTimer = null;
+    }
     sys.localStorage.setItem(SAVE_KEY, JSON.stringify(nextData));
   }
 
+  static saveDeferred(data: GameSaveData, delayMs = 400): void {
+    SaveManager.pendingSaveData = normalizeSaveData(data);
+    if (SaveManager.saveTimer) {
+      clearTimeout(SaveManager.saveTimer);
+    }
+    SaveManager.saveTimer = setTimeout(() => {
+      SaveManager.flushPendingSave();
+    }, Math.max(0, delayMs));
+  }
+
+  static flushPendingSave(): void {
+    if (!SaveManager.pendingSaveData) {
+      return;
+    }
+    const pendingData = SaveManager.pendingSaveData;
+    SaveManager.pendingSaveData = null;
+    if (SaveManager.saveTimer) {
+      clearTimeout(SaveManager.saveTimer);
+      SaveManager.saveTimer = null;
+    }
+    sys.localStorage.setItem(SAVE_KEY, JSON.stringify(pendingData));
+  }
+
   static clear(): void {
+    SaveManager.pendingSaveData = null;
+    if (SaveManager.saveTimer) {
+      clearTimeout(SaveManager.saveTimer);
+      SaveManager.saveTimer = null;
+    }
     sys.localStorage.removeItem(SAVE_KEY);
     sys.localStorage.removeItem('taoyuan_teahouse_demo_save_v1');
   }

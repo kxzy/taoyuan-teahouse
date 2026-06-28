@@ -1,11 +1,16 @@
-﻿import { _decorator, Component, Label, Node, Prefab, instantiate, Vec3 } from 'cc';
-import { Customer, CustomerState } from './Customer';
+﻿import { _decorator, Component, Game, Label, Node, Prefab, Vec3, game, instantiate } from 'cc';
+import { Customer } from './Customer';
+import { EventBus, GameEventName } from './EventBus';
 import { CUSTOMER_TYPES, getLevelConfig, getMaxDemoLevel, getRecipe, RecipeConfig, RecipeId } from './GameConfig';
 import { SaveManager, GameSaveData } from './SaveManager';
+import { SeatManager } from './SeatManager';
 import { Workstation } from './Workstation';
 
 const { ccclass, property } = _decorator;
+const DEFAULT_SEAT_OFFSET = new Vec3(0, 45, 0);
+const DEFAULT_CUSTOMER_POOL_SIZE = 6;
 
+/** @deprecated 保留为旧场景兼容外壳；当前主流程请使用 AutoDemoGame。 */
 @ccclass('GameManager')
 export class GameManager extends Component {
   @property(Label)
@@ -31,15 +36,27 @@ export class GameManager extends Component {
 
   private saveData: GameSaveData = SaveManager.load();
   private customers: Customer[] = [];
+  private readonly seatManager = new SeatManager();
+  private customerPool: Node[] = [];
   private spawnTimer = 0;
-  private occupiedSeats = new Set<number>();
   private successfulServeStreak = 0;
+
+  onLoad(): void {
+    game.on(Game.EVENT_HIDE, this.handleGameHide, this);
+  }
+
+  onDestroy(): void {
+    game.off(Game.EVENT_HIDE, this.handleGameHide, this);
+    SaveManager.flushPendingSave();
+  }
 
   start(): void {
     this.saveData = SaveManager.load();
+    this.seatManager.setBindings(this.seatNodes);
     this.workstation?.setTeaReadyCallback((recipe) => this.onTeaReady(recipe));
+    this.warmCustomerPool();
     this.spawnTimer = 1;
-    this.refreshHud('娆㈣繋鏉ュ埌妗冩簮鑼惰倖');
+    this.refreshHud('欢迎来到桃源茶肆');
   }
 
   update(deltaTime: number): void {
@@ -52,15 +69,15 @@ export class GameManager extends Component {
   }
 
   makeGreenTea(): void {
-    this.enqueueRecipe(RecipeId.GreenTea);
+    this.makeRecipe(RecipeId.GreenTea);
   }
 
   makeBlackTea(): void {
-    this.enqueueRecipe(RecipeId.BlackTea);
+    this.makeRecipe(RecipeId.BlackTea);
   }
 
   makeJasmineTea(): void {
-    this.enqueueRecipe(RecipeId.JasmineTea);
+    this.makeRecipe(RecipeId.JasmineTea);
   }
 
   upgradeShop(): void {
@@ -95,14 +112,14 @@ export class GameManager extends Component {
     this.clearAllCustomers();
     this.workstation?.clearQueue();
     this.spawnTimer = 1;
-    this.refreshHud('璋冭瘯锛氬凡娓呯┖瀛樻。');
+    this.refreshHud('调试：已清空存档');
   }
 
   debugSpawnCustomer(): void {
     this.trySpawnCustomer(true);
   }
 
-  private enqueueRecipe(recipeId: RecipeId): void {
+  private makeRecipe(recipeId: RecipeId): void {
     const levelConfig = getLevelConfig(this.saveData.level);
     if (!levelConfig.unlockedRecipeIds.includes(recipeId)) {
       this.refreshHud('该茶饮尚未解锁');
@@ -120,40 +137,48 @@ export class GameManager extends Component {
       return;
     }
 
-    const seatIndex = this.findFreeSeatIndex();
+    const seatIndex = this.seatManager.findFreeSeatIndex(this.saveData.unlockedSeatCount);
     if (seatIndex < 0) {
       return;
     }
 
-    if (!this.customerPrefab || !this.customerRoot) {
-      this.refreshHud('缂哄皯瀹汉 Prefab 鎴?customerRoot 缁戝畾');
+    if (!this.customerRoot) {
+      this.refreshHud('缺少 customerRoot 绑定');
       return;
     }
 
-    const customerNode = instantiate(this.customerPrefab);
+    const customerNode = this.obtainCustomerNode();
     this.customerRoot.addChild(customerNode);
-    const seatNode = this.seatNodes[seatIndex];
-    customerNode.setWorldPosition(seatNode.worldPosition.clone().add(new Vec3(0, 45, 0)));
+    const seatNode = this.seatManager.getSeatNode(seatIndex);
+    if (!seatNode) {
+      this.recycleNode(customerNode);
+      this.refreshHud('桌位节点缺失，无法安排客人');
+      return;
+    }
+    customerNode.setWorldPosition(seatNode.worldPosition.clone().add(DEFAULT_SEAT_OFFSET));
+    customerNode.active = true;
 
     const customer = customerNode.getComponent(Customer);
     if (!customer) {
-      customerNode.destroy();
-      this.refreshHud('瀹汉 Prefab 缂哄皯 Customer 缁勪欢');
+      this.recycleNode(customerNode);
+      this.refreshHud('客人节点缺少 Customer 组件');
       return;
     }
 
     const customerType = this.pickCustomerType();
     const recipe = this.pickRecipeForCustomer(customerType.allowedRecipeIds);
-    this.occupiedSeats.add(seatIndex);
+    this.seatManager.occupy(seatIndex);
     customer.init({
       recipe,
+      customerName: customerType.name,
       spendMultiplier: customerType.spendMultiplier,
       patienceSeconds: customerType.patienceSeconds,
       seatIndex,
       onLost: (lostCustomer) => this.onCustomerLost(lostCustomer),
+      onRecycle: (finishedCustomer) => this.recycleCustomer(finishedCustomer),
     });
     this.customers.push(customer);
-    this.refreshHud(`${customerType.name} 鐐逛簡 ${recipe.name}`);
+    this.refreshHud(`${customerType.name} 点了 ${recipe.name}`);
   }
 
   private onTeaReady(recipe: RecipeConfig): void {
@@ -166,35 +191,27 @@ export class GameManager extends Component {
     const income = target.markServed();
     this.saveData.coins += income;
     this.successfulServeStreak += 1;
-    SaveManager.save(this.saveData);
-    this.refreshHud(`浜や粯 ${recipe.name}锛屾敹鍏?+${income}`);
+    SaveManager.saveDeferred(this.saveData);
+    this.refreshHud(`交付 ${recipe.name}，收入 +${income}`);
     this.removeCustomer(target, 0.8);
   }
 
   private onCustomerLost(customer: Customer): void {
     this.successfulServeStreak = 0;
-    this.refreshHud('瀹汉绛夊お涔呮祦澶变簡');
+    this.refreshHud('客人等太久流失了');
     this.removeCustomer(customer, 0.8);
   }
 
   private removeCustomer(customer: Customer, delaySeconds: number): void {
-    this.occupiedSeats.delete(customer.seatIndex);
+    this.seatManager.release(customer.seatIndex);
     this.customers = this.customers.filter((item) => item !== customer);
     this.scheduleOnce(() => {
-      if (customer.node && customer.node.isValid) {
-        customer.node.destroy();
-      }
+      this.recycleCustomer(customer);
     }, delaySeconds);
   }
 
   private findFreeSeatIndex(): number {
-    const maxSeatCount = Math.min(this.saveData.unlockedSeatCount, this.seatNodes.length);
-    for (let i = 0; i < maxSeatCount; i += 1) {
-      if (!this.occupiedSeats.has(i)) {
-        return i;
-      }
-    }
-    return -1;
+    return this.seatManager.findFreeSeatIndex(this.saveData.unlockedSeatCount);
   }
 
   private pickCustomerType() {
@@ -221,12 +238,62 @@ export class GameManager extends Component {
 
   private clearAllCustomers(): void {
     for (const customer of this.customers) {
-      if (customer.node && customer.node.isValid) {
-        customer.node.destroy();
-      }
+      this.recycleCustomer(customer);
     }
     this.customers.length = 0;
-    this.occupiedSeats.clear();
+    this.seatManager.clearOccupancy();
+  }
+
+  private obtainCustomerNode(): Node {
+    const pooledNode = this.customerPool.pop();
+    if (pooledNode) {
+      pooledNode.active = true;
+      return pooledNode;
+    }
+
+    if (!this.customerPrefab) {
+      throw new Error('缺少 customerPrefab 绑定');
+    }
+
+    const node = instantiate(this.customerPrefab);
+    const customer = node.getComponent(Customer);
+    customer?.resetForReuse();
+    return node;
+  }
+
+  private recycleCustomer(customer: Customer): void {
+    const node = customer.node;
+    this.recycleNode(node, customer);
+  }
+
+  private recycleNode(node: Node, customer?: Customer | null): void {
+    if (!node || !node.isValid) {
+      return;
+    }
+    if (!node.active && !node.parent && this.customerPool.includes(node)) {
+      return;
+    }
+    customer?.resetForReuse();
+    node.removeFromParent();
+    node.active = false;
+    this.customerPool.push(node);
+  }
+
+  private warmCustomerPool(): void {
+    if (!this.customerPrefab || !this.customerRoot) {
+      return;
+    }
+    while (this.customerPool.length < DEFAULT_CUSTOMER_POOL_SIZE) {
+      const node = instantiate(this.customerPrefab);
+      const customer = node.getComponent(Customer);
+      customer?.resetForReuse();
+      node.active = false;
+      this.customerPool.push(node);
+    }
+  }
+
+  private handleGameHide(): void {
+    SaveManager.flushPendingSave();
   }
 
   private refreshHud(message?: string): void {
@@ -235,11 +302,11 @@ export class GameManager extends Component {
     }
 
     if (this.coinsLabel) {
-      this.coinsLabel.string = `閲戝竵 ${this.saveData.coins}`;
+      this.coinsLabel.string = `金币 ${this.saveData.coins}`;
     }
 
-    if (this.messageLabel && message) {
-      this.messageLabel.string = message;
+    if (message) {
+      EventBus.emit(GameEventName.HudMessage, message);
     }
   }
 }

@@ -5,6 +5,10 @@
   "creator": {
     "version": "3.8.8"
   },
+  "scripts": {
+    "validate:v1-loop": "node tools/validate-v1-loop.js",
+    "typecheck:cocos": "\"C:\\ProgramData\\cocos\\editors\\Creator\\3.8.8\\resources\\resources\\3d\\engine\\node_modules\\.bin\\tsc.cmd\" -p tools/tsconfig.codex-check.json --pretty false"
+  },
   "dependencies": {},
   "devDependencies": {}
 }

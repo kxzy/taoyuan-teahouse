@@ -70,6 +70,7 @@ export interface TeahouseDecorationVisualConfig {
 
 const TABLE_COLUMNS = [-168, 150];
 const TABLE_ROWS = [190, 90, -10];
+const TABLE_CUSTOMER_Y_OFFSETS = [90, 90, 72, 72, 62, 62];
 
 // 桌椅素材与桌位数量入口：当前场景最多摆放 6 组茶桌；每级实际显示数量由 LEVELS[].seatCount 控制。
 export const TEAHOUSE_TABLE_FURNITURE: TeahouseTableFurnitureConfig[] = Array.from({ length: 6 }, (_, index) => {
@@ -86,7 +87,7 @@ export const TEAHOUSE_TABLE_FURNITURE: TeahouseTableFurnitureConfig[] = Array.fr
     height: 82,
     badgeOffsetRatio: -0.18,
     statusOffsetRatio: 0.22,
-    customerYOffset: 50,
+    customerYOffset: TABLE_CUSTOMER_Y_OFFSETS[index] ?? 72,
   };
 });
 
@@ -96,7 +97,6 @@ export const TEAHOUSE_FURNITURE: Record<string, TeahouseFurnitureConfig> = {
     id: 'workstation_counter',
     nodeName: 'WorkstationPanel',
     fallbackNodeNames: ['WorkstationCounter', 'Counter_柜台', 'WorkstationPanel'],
-    textureKey: 'counter',
     x: 0,
     y: -272,
     width: 520,
