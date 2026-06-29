@@ -1,8 +1,10 @@
-import { _decorator, Button, Camera, Canvas, Color, Component, find, game, Game, Graphics, Label, Layers, Node, Rect, resources, Size, Sprite, SpriteFrame, Texture2D, Tween, tween, UITransform, Vec3, view, Widget } from 'cc';
+import { _decorator, Button, Camera, Canvas, Color, Component, find, game, Game, Graphics, instantiate, Label, Layers, Node, Rect, resources, Size, Sprite, SpriteFrame, Texture2D, Tween, tween, UITransform, Vec3, view, Widget } from 'cc';
 import { Customer } from './Customer';
 import { CUSTOMER_TYPES, CustomerTypeId, getLevelConfig, getMaxDemoLevel, getRecipe, IngredientCostConfig, RecipeConfig, RecipeId, RECIPES, TEAHOUSE_DECORATION_VISUALS, TEAHOUSE_FURNITURE, TEAHOUSE_TABLE_FURNITURE, TEAHOUSE_TEXTURE_PATHS, TeahouseDecorationVisualConfig, TeahouseFurnitureConfig, TeahouseTableFurnitureConfig, TeahouseTextureKey } from './GameConfig';
 import { FarmPlotId, getFarmPlotConfig } from './FarmConfig';
+import { FarmManager } from './FarmManager';
 import { CollectionViewModel, DaySettledPayload, EventBus, GameEventName, HudViewModel, MainTabId, OfflineRewardSummary, OrderCompletedPayload, PlayEffectPayload, PrimaryActionId, RequestRevivePayload, ResearchCompletedPayload, ResearchResultSummary, ReviveOfferPayload, ReviveSuccessPayload, ShopUpgradedPayload, SupplyItemId, SupplyShopViewModel, WorkstationQteStatePayload } from './EventBus';
+import { NavigationBar } from './NavigationBar';
 import { DevelopedDrinkSave, GameSaveData, IngredientStock, SaveManager, StaffId, StaffMemberSave } from './SaveManager';
 import { SeatManager } from './SeatManager';
 import { SimpleProgressBar } from './SimpleProgressBar';
@@ -11,7 +13,7 @@ import { FARM_PLOT_SEQUENCE, FarmSystem } from './systems/FarmSystem';
 import { UIManager } from './UIManager';
 import { TeaReadyResult, Workstation } from './Workstation';
 
-const { ccclass } = _decorator;
+const { ccclass, property } = _decorator;
 
 type TextureKey = TeahouseTextureKey;
 type MainTab = MainTabId;
@@ -241,14 +243,12 @@ function addTextureSprite(node: Node, textureKey: TextureKey, width: number, hei
           texture,
         });
         sprite.spriteFrame = spriteFrame;
-        console.log(`图片加载成功：${path}`);
         return;
       }
 
       resources.load(path, SpriteFrame, (frameError: Error | null, spriteFrame: SpriteFrame | null) => {
         if (!frameError && spriteFrame) {
           sprite.spriteFrame = spriteFrame;
-          console.log(`SpriteFrame 加载成功：${path}`);
           return;
         }
 
@@ -676,6 +676,9 @@ function addRecipeVisualToButton(buttonNode: Node, recipeId: RecipeId): void {
 
 @ccclass('AutoDemoGame')
 export class AutoDemoGame extends Component {
+  @property({ type: SpriteFrame, displayName: 'Farm Background Sprite' })
+  farmBackgroundSprite: SpriteFrame | null = null;
+
   private saveData: GameSaveData = SaveManager.load();
   private uiManager: UIManager | null = null;
   private achievementSystem: AchievementSystem | null = null;
@@ -744,7 +747,9 @@ export class AutoDemoGame extends Component {
   };
   private farmButtonLabels: Partial<Record<FarmPlotId, Label>> = {};
   private farmDescriptionLabels: Partial<Record<FarmPlotId, Label>> = {};
+  private farmPageBackground: Node | null = null;
   private farmPanel: Node | null = null;
+  private farmManager: FarmManager | null = null;
   private farmSummaryLabel: Label | null = null;
   private teahousePageRoot: Node | null = null;
   private researchPanel: Node | null = null;
@@ -754,7 +759,7 @@ export class AutoDemoGame extends Component {
   private helpPanel: Node | null = null;
   private debugControlsRoot: Node | null = null;
   private debugToggleLabel: Label | null = null;
-  private debugControlsVisible = true;
+  private debugControlsVisible = DEBUG_CONTROLS_DEFAULT_VISIBLE;
   private customerRoot: Node | null = null;
   private manualCustomerTemplate: Node | null = null;
   private manualTestScholarSprite: Sprite | null = null;
@@ -818,20 +823,21 @@ export class AutoDemoGame extends Component {
   private mainPlayRoot: Node | null = null;
   private bottomHudRoot: Node | null = null;
   private debugRailRoot: Node | null = null;
+  private navigationBar: NavigationBar | null = null;
   private entrancePosition = new Vec3(-360, 235, 0);
   private exitPosition = new Vec3(360, 235, 0);
 
   onLoad(): void {
     game.on(Game.EVENT_HIDE, this.handleGameHide, this);
-    EventBus.on(GameEventName.RequestMakeRecipe, this.handleRequestMakeRecipeEvent);
-    EventBus.on(GameEventName.RequestPrimaryAction, this.handleRequestPrimaryActionEvent);
-    EventBus.on(GameEventName.RequestSwitchMainTab, this.handleRequestSwitchMainTabEvent);
-    EventBus.on(GameEventName.RequestOpenSupplyShop, this.handleRequestOpenSupplyShopEvent);
-    EventBus.on(GameEventName.RequestBuySupplyItem, this.handleRequestBuySupplyItemEvent);
-    EventBus.on(GameEventName.RequestDoubleOfflineReward, this.handleRequestDoubleOfflineRewardEvent);
-    EventBus.on(GameEventName.RequestRevive, this.handleRequestReviveEvent);
-    EventBus.on(GameEventName.OnReviveSuccess, this.handleReviveSuccessEvent);
-    EventBus.on(GameEventName.WorkstationQteState, this.handleWorkstationQteStateEvent);
+    EventBus.on(GameEventName.RequestMakeRecipe, this.handleRequestMakeRecipeEvent, this);
+    EventBus.on(GameEventName.RequestPrimaryAction, this.handleRequestPrimaryActionEvent, this);
+    EventBus.on(GameEventName.RequestSwitchMainTab, this.handleRequestSwitchMainTabEvent, this);
+    EventBus.on(GameEventName.RequestOpenSupplyShop, this.handleRequestOpenSupplyShopEvent, this);
+    EventBus.on(GameEventName.RequestBuySupplyItem, this.handleRequestBuySupplyItemEvent, this);
+    EventBus.on(GameEventName.RequestDoubleOfflineReward, this.handleRequestDoubleOfflineRewardEvent, this);
+    EventBus.on(GameEventName.RequestRevive, this.handleRequestReviveEvent, this);
+    EventBus.on(GameEventName.OnReviveSuccess, this.handleReviveSuccessEvent, this);
+    EventBus.on(GameEventName.WorkstationQteState, this.handleWorkstationQteStateEvent, this);
     const canvas = this.node.getComponent(Canvas);
     if (canvas) {
       const canvasConfig = canvas as Canvas & { fitWidth?: boolean; fitHeight?: boolean; alignCanvasWithScreen?: boolean };
@@ -847,19 +853,16 @@ export class AutoDemoGame extends Component {
 
   onDestroy(): void {
     game.off(Game.EVENT_HIDE, this.handleGameHide, this);
-    EventBus.off(GameEventName.RequestMakeRecipe, this.handleRequestMakeRecipeEvent);
-    EventBus.off(GameEventName.RequestPrimaryAction, this.handleRequestPrimaryActionEvent);
-    EventBus.off(GameEventName.RequestSwitchMainTab, this.handleRequestSwitchMainTabEvent);
-    EventBus.off(GameEventName.RequestOpenSupplyShop, this.handleRequestOpenSupplyShopEvent);
-    EventBus.off(GameEventName.RequestBuySupplyItem, this.handleRequestBuySupplyItemEvent);
-    EventBus.off(GameEventName.RequestDoubleOfflineReward, this.handleRequestDoubleOfflineRewardEvent);
-    EventBus.off(GameEventName.RequestRevive, this.handleRequestReviveEvent);
-    EventBus.off(GameEventName.OnReviveSuccess, this.handleReviveSuccessEvent);
-    EventBus.off(GameEventName.WorkstationQteState, this.handleWorkstationQteStateEvent);
-    const brewButton = findNodeByName(this.node, 'BrewButton');
-    const serveButton = findNodeByName(this.node, 'ServeButton');
-    brewButton?.off(Button.EventType.CLICK, this.handleManualBrewButtonClick, this);
-    serveButton?.off(Button.EventType.CLICK, this.handleManualServeButtonClick, this);
+    view.setResizeCallback(null);
+    EventBus.off(GameEventName.RequestMakeRecipe, this.handleRequestMakeRecipeEvent, this);
+    EventBus.off(GameEventName.RequestPrimaryAction, this.handleRequestPrimaryActionEvent, this);
+    EventBus.off(GameEventName.RequestSwitchMainTab, this.handleRequestSwitchMainTabEvent, this);
+    EventBus.off(GameEventName.RequestOpenSupplyShop, this.handleRequestOpenSupplyShopEvent, this);
+    EventBus.off(GameEventName.RequestBuySupplyItem, this.handleRequestBuySupplyItemEvent, this);
+    EventBus.off(GameEventName.RequestDoubleOfflineReward, this.handleRequestDoubleOfflineRewardEvent, this);
+    EventBus.off(GameEventName.RequestRevive, this.handleRequestReviveEvent, this);
+    EventBus.off(GameEventName.OnReviveSuccess, this.handleReviveSuccessEvent, this);
+    EventBus.off(GameEventName.WorkstationQteState, this.handleWorkstationQteStateEvent, this);
     this.workstationNode?.off(Node.EventType.TOUCH_END, this.handleWorkstationTouchEnd, this);
     this.achievementSystem?.dispose();
     SaveManager.flushPendingSave();
@@ -949,11 +952,9 @@ export class AutoDemoGame extends Component {
     debugRailRoot.removeAllChildren();
     this.debugRailRoot = debugRailRoot;
 
-    console.log('AutoDemoGame started in manual scene mode.');
-
-    const topBar = createPanel('TopStatusBar', 680, 96, new Color(45, 28, 18, 190));
+    const topBar = createPanel('TopStatusBar', 680, 78, new Color(45, 28, 18, 176));
     topHudRoot.addChild(topBar);
-    topBar.setPosition(0, 560, 0);
+    topBar.setPosition(0, 586, 0);
 
     const uiManagerNode = controlLayer.getChildByName('UIManagerRoot') ?? new Node('UIManagerRoot');
     if (!uiManagerNode.parent) {
@@ -964,49 +965,54 @@ export class AutoDemoGame extends Component {
 
     const levelNode = createLabel('LevelLabel', '第1天  口碑100', 16, new Color(255, 236, 195, 255));
     topBar.addChild(levelNode);
-    levelNode.setPosition(-220, 24, 0);
+    levelNode.setPosition(-228, 16, 0);
     const levelLabel = levelNode.getComponent(Label);
     this.uiManager.levelLabel = levelLabel;
 
     const coinsNode = createLabel('CoinsLabel', '金币 0', 18, new Color(255, 236, 195, 255));
     topBar.addChild(coinsNode);
-    coinsNode.setPosition(220, 24, 0);
+    coinsNode.setPosition(228, 16, 0);
     const coinsLabel = coinsNode.getComponent(Label);
     this.uiManager.coinsLabel = coinsLabel;
 
     const messageNode = createLabel('MessageLabel', '看订单，点茶饮，自动上茶', 13, new Color(255, 236, 195, 255));
     topBar.addChild(messageNode);
-    messageNode.setPosition(0, -26, 0);
+    messageNode.setPosition(0, -16, 0);
     const messageLabel = messageNode.getComponent(Label);
     this.uiManager.messageLabel = messageLabel;
 
-    const guidePanel = createPanel('GuidePanel', 640, 88, new Color(45, 28, 18, 188));
+    const guidePanel = createPanel('GuidePanel', 640, 68, new Color(45, 28, 18, 176));
     topHudRoot.addChild(guidePanel);
     guidePanel.setSiblingIndex(9996);
-    guidePanel.setPosition(0, 468, 0);
+    guidePanel.setPosition(0, 514, 0);
 
     const goalNode = createLabel('GoalLabel', '', 14, new Color(255, 245, 220, 255));
     guidePanel.addChild(goalNode);
-    goalNode.setPosition(0, 26, 0);
+    goalNode.setPosition(0, 12, 0);
     this.uiManager.goalLabel = goalNode.getComponent(Label);
 
     const actionHintNode = createLabel('ActionHintLabel', '', 14, new Color(255, 226, 150, 255));
     const actionHintLabel = actionHintNode.getComponent(Label);
     if (actionHintLabel) {
-      actionHintLabel.lineHeight = 20;
+      actionHintLabel.lineHeight = 18;
     }
     guidePanel.addChild(actionHintNode);
-    actionHintNode.setPosition(0, -8, 0);
+    actionHintNode.setPosition(0, -14, 0);
     this.uiManager.actionHintLabel = actionHintLabel;
 
-    const ingredientNode = createLabel('IngredientLabel', '', 13, new Color(255, 245, 220, 230));
-    topHudRoot.addChild(ingredientNode);
-    ingredientNode.setPosition(0, 416, 0);
+    const ingredientPanel = createPanel('IngredientPanel', 640, 34, new Color(45, 28, 18, 156));
+    topHudRoot.addChild(ingredientPanel);
+    ingredientPanel.setSiblingIndex(9995);
+    ingredientPanel.setPosition(0, 470, 0);
+
+    const ingredientNode = createLabel('IngredientLabel', '', 12, new Color(255, 245, 220, 230));
+    ingredientPanel.addChild(ingredientNode);
+    ingredientNode.setPosition(0, 0, 0);
     this.uiManager.ingredientLabel = ingredientNode.getComponent(Label);
 
-    const urgentAlertPanel = createPanel('UrgentAlertPanel', 220, 54, new Color(120, 32, 22, 190));
+    const urgentAlertPanel = createPanel('UrgentAlertPanel', 176, 46, new Color(120, 32, 22, 176));
     topHudRoot.addChild(urgentAlertPanel);
-    urgentAlertPanel.setPosition(-232, 390, 0);
+    urgentAlertPanel.setPosition(-232, 424, 0);
     const urgentAlertNode = createLabel('UrgentAlertLabel', '无急单', 14, new Color(255, 238, 210, 255));
     urgentAlertPanel.addChild(urgentAlertNode);
     urgentAlertNode.setPosition(0, -1, 0);
@@ -1015,10 +1021,11 @@ export class AutoDemoGame extends Component {
     this.customerRoot = getOrCreateManualLayer(mainPlayRoot, 'CustomerRoot', 2000);
     this.customerRoot.removeAllChildren();
     this.customerPool.length = 0;
+    this.hideLegacyManualSceneButtons(root);
     this.manualCustomerTemplate = findManualCustomerTemplate(root);
     if (this.manualCustomerTemplate) {
-      this.manualCustomerTemplate.active = true;
-      this.bindManualSceneTestButtons(root);
+      this.manualCustomerTemplate.active = false;
+      this.setupManualSceneTestState();
     }
 
     const customEntrance = findNodeByName(root, 'EntrancePoint');
@@ -1124,10 +1131,10 @@ export class AutoDemoGame extends Component {
     teahousePageRoot.setSiblingIndex(9998);
     this.teahousePageRoot = teahousePageRoot;
 
-    const controlPanel = createPanel('TeaHouseControlPanel', 700, 186, new Color(45, 28, 18, 135));
+    const controlPanel = createPanel('TeaHouseControlPanel', 700, 152, new Color(45, 28, 18, 124));
     teahousePageRoot.addChild(controlPanel);
     controlPanel.setSiblingIndex(9997);
-    controlPanel.setPosition(0, -548, 0);
+    controlPanel.setPosition(0, -478, 0);
 
     const buttonRows: Array<{ name: string; text: string; x: number; y: number; callback: () => void; role?: 'upgrade' | 'supply' | 'nextDay' | 'extend' | 'help'; width?: number; height?: number }> = [
       { name: 'BtnBuySupplies', text: '补货', x: 160, y: 18, callback: () => this.uiManager?.requestPrimaryAction('supply'), role: 'supply', width: 112, height: 40 },
@@ -1141,6 +1148,8 @@ export class AutoDemoGame extends Component {
       { name: 'BtnDebugSpawn', text: 'Debug\n刷客', x: 0, y: 60, callback: () => this.trySpawnCustomer(true), width: 82, height: 34 },
       { name: 'BtnDebugClear', text: 'Debug\n清档', x: 0, y: 20, callback: () => this.debugClearSave(), width: 82, height: 34 },
       { name: 'BtnDebugLevel', text: 'Debug\n升1级', x: 0, y: -20, callback: () => this.debugLevelUp(), width: 82, height: 34 },
+      { name: 'BtnDebugGuestWait', text: 'Debug\n待客', x: 0, y: -60, callback: () => this.handleManualBrewButtonClick(), width: 82, height: 34 },
+      { name: 'BtnDebugGuestServe', text: 'Debug\n上茶', x: 0, y: -100, callback: () => this.handleManualServeButtonClick(), width: 82, height: 34 },
     ];
 
     this.farmButtonLabels = {};
@@ -1154,9 +1163,9 @@ export class AutoDemoGame extends Component {
       controlPanel.addChild(teaButtonContainer);
     }
     teaButtonContainer.setSiblingIndex(9999);
-    teaButtonContainer.setPosition(0, 40, 0);
+    teaButtonContainer.setPosition(0, 34, 0);
     const teaButtonContainerTransform = teaButtonContainer.getComponent(UITransform) ?? teaButtonContainer.addComponent(UITransform);
-    teaButtonContainerTransform.setContentSize(660, 110);
+    teaButtonContainerTransform.setContentSize(660, 92);
     if (this.uiManager) {
       this.uiManager.teaButtonContainer = teaButtonContainer;
       this.uiManager.refreshTeaButtons(this.getUnlockedStandardRecipes());
@@ -1179,7 +1188,7 @@ export class AutoDemoGame extends Component {
       }
     }
 
-    this.buildMainTabBar(bottomHudRoot);
+    this.buildMainTabBar(bottomHudRoot, root);
 
     const debugToggleButton = createButton('BtnDebugToggle', 'Debug', 82, 34, () => this.toggleDebugControls());
     debugRailRoot.addChild(debugToggleButton);
@@ -1200,7 +1209,7 @@ export class AutoDemoGame extends Component {
     }
     this.refreshDebugControls();
 
-    this.buildFarmPanel(controlLayer);
+    this.buildFarmPanel(safeAreaRoot, root);
     this.buildResearchPanel(controlLayer);
     this.buildStaffPanel(controlLayer);
     this.buildDecorationPanel(controlLayer);
@@ -1300,7 +1309,7 @@ export class AutoDemoGame extends Component {
   }
 
 
-  private buildMainTabBar(parent: Node): void {
+  private buildMainTabBar(parent: Node, root: Node): void {
     const tabs: Array<{ id: MainTab; text: string; x: number }> = [
       { id: 'teahouse', text: '茶肆', x: -290 },
       { id: 'farm', text: '农场', x: -174 },
@@ -1309,12 +1318,36 @@ export class AutoDemoGame extends Component {
       { id: 'collection', text: '图鉴', x: 174 },
       { id: 'decoration', text: '更多', x: 290 },
     ];
+    const existingNav = findNodeByName(root, 'BottomNav');
+    if (existingNav) {
+      if (existingNav.parent !== parent) {
+        existingNav.removeFromParent();
+        parent.addChild(existingNav);
+      }
+      existingNav.setSiblingIndex(10000);
+      existingNav.setPosition(0, -574, 0);
+      existingNav.setScale(1, 1, 1);
+      applyLayerRecursively(existingNav, Layers.Enum.UI_2D);
+      const navTransform = existingNav.getComponent(UITransform) ?? existingNav.addComponent(UITransform);
+      if (navTransform.contentSize.width <= 0 || navTransform.contentSize.height <= 0) {
+        navTransform.setContentSize(720, 168);
+      }
+
+      const nav = existingNav.getComponent(NavigationBar);
+      if (nav?.tabPrefab && nav.tabContainer && nav.tabConfigs.length > 0) {
+        nav.setActiveTab(this.currentMainTab);
+        this.navigationBar = nav;
+        this.uiManager?.bindNavigationBar(nav);
+        return;
+      }
+    }
+
     const bar = createPanel('MainTabBar', 700, 58, new Color(45, 28, 18, 210));
     parent.addChild(bar);
     bar.setSiblingIndex(10000);
-    bar.setPosition(0, -620, 0);
+    bar.setPosition(0, -574, 0);
     for (const tab of tabs) {
-      const button = createButton(`Tab_${tab.id}`, tab.text, 108, 42, () => this.uiManager?.requestSwitchMainTab(tab.id));
+      const button = createButton(`Tab_${tab.id}`, this.getNavigationTabLabel(tab.id), 108, 42, () => this.uiManager?.requestSwitchMainTab(tab.id));
       bar.addChild(button);
       button.setPosition(tab.x, 0, 0);
       const label = button.getChildByName(`Tab_${tab.id}_Label`)?.getComponent(Label) ?? null;
@@ -1324,8 +1357,43 @@ export class AutoDemoGame extends Component {
     }
   }
 
+  private getNavigationTabLabel(tabId: MainTab): string {
+    const labels: Record<MainTab, string> = {
+      teahouse: '\u8336\u8086',
+      farm: '\u519c\u573a',
+      staff: '\u5458\u5de5',
+      research: '\u7814\u53d1',
+      collection: '\u56fe\u9274',
+      decoration: '\u66f4\u591a',
+    };
+
+    return labels[tabId];
+  }
+
   private switchMainTab(tab: MainTab): void {
     this.currentMainTab = tab;
+    this.navigationBar?.setActiveTab(tab);
+    const isFarmPage = tab === 'farm';
+    const useTeahouseBackdrop = !isFarmPage;
+    if (this.bottomHudRoot) {
+      this.bottomHudRoot.active = true;
+      this.bottomHudRoot.setSiblingIndex(40);
+    }
+    if (this.backgroundNode) {
+      this.backgroundNode.active = useTeahouseBackdrop;
+    }
+    if (this.topHudRoot) {
+      this.topHudRoot.active = useTeahouseBackdrop;
+    }
+    if (this.farmPageBackground) {
+      this.farmPageBackground.active = isFarmPage;
+    }
+    if (this.mainPlayRoot) {
+      this.mainPlayRoot.active = tab === 'teahouse';
+    }
+    if (this.workstationNode) {
+      this.workstationNode.active = tab === 'teahouse';
+    }
     if (this.teahousePageRoot) {
       this.teahousePageRoot.active = tab === 'teahouse';
     }
@@ -1397,17 +1465,17 @@ export class AutoDemoGame extends Component {
   }
 
   private toggleDebugControls(): void {
-    this.debugControlsVisible = true;
+    this.debugControlsVisible = !this.debugControlsVisible;
     this.refreshDebugControls();
-    this.refreshHud('调试按钮已固定显示在右侧');
+    this.refreshHud(this.debugControlsVisible ? '调试按钮已显示' : '调试按钮已隐藏');
   }
 
   private refreshDebugControls(): void {
     if (this.debugControlsRoot) {
-      this.debugControlsRoot.active = true;
+      this.debugControlsRoot.active = this.debugControlsVisible;
     }
     if (this.debugToggleLabel) {
-      this.debugToggleLabel.string = 'Debug';
+      this.debugToggleLabel.string = this.debugControlsVisible ? 'Debug-' : 'Debug+';
     }
   }
 
@@ -2222,23 +2290,21 @@ export class AutoDemoGame extends Component {
       return createImageNode('customer_group', 'scholar', 88, 88);
     }
 
-    const templateClone = this.manualCustomerTemplate.clone();
+    const templateClone = instantiate(this.manualCustomerTemplate);
     templateClone.name = 'customer_group';
     templateClone.active = true;
     applyLayerRecursively(templateClone, Layers.Enum.UI_2D);
     return templateClone;
   }
 
-  private bindManualSceneTestButtons(root: Node): void {
+  private setupManualSceneTestState(): void {
     if (this.manualTestButtonsBound) {
       return;
     }
 
-    const brewButton = findNodeByName(root, 'BrewButton');
-    const serveButton = findNodeByName(root, 'ServeButton');
     const scholarTemplate = this.manualCustomerTemplate;
 
-    if (!brewButton || !serveButton || !scholarTemplate) {
+    if (!scholarTemplate) {
       return;
     }
 
@@ -2248,6 +2314,7 @@ export class AutoDemoGame extends Component {
     this.manualTestWaitFrame = this.manualTestScholarSprite?.spriteFrame ?? null;
     this.manualTestDrinkFrame = null;
     this.manualTestHappyFrame = null;
+    this.manualTestRootNode.active = false;
 
     loadFirstAvailableSpriteFrame(['image/customer/customer_scholar_drink/spriteFrame', 'image/customer_scholar_drink/spriteFrame'], (frame) => {
       this.manualTestDrinkFrame = frame;
@@ -2255,12 +2322,6 @@ export class AutoDemoGame extends Component {
     loadFirstAvailableSpriteFrame(['image/customer/customer_scholar_happy/spriteFrame', 'image/customer_scholar_happy/spriteFrame'], (frame) => {
       this.manualTestHappyFrame = frame;
     });
-
-    const brewButtonComp = brewButton.getComponent(Button);
-    const serveButtonComp = serveButton.getComponent(Button);
-
-    brewButtonComp?.node.on(Button.EventType.CLICK, this.handleManualBrewButtonClick, this);
-    serveButtonComp?.node.on(Button.EventType.CLICK, this.handleManualServeButtonClick, this);
 
     this.manualTestButtonsBound = true;
   }
@@ -3009,17 +3070,56 @@ export class AutoDemoGame extends Component {
     return this.saveData.farm.fruitTree;
   }
 
-  private buildFarmPanel(parent: Node): void {
-    const panel = createPanel('FarmPanel', 610, 430, new Color(55, 32, 20, 238));
+  private createFarmPageBackground(): Node {
+    if (!this.farmBackgroundSprite) {
+      return createPanel('FarmPageBackground', 720, 1280, new Color(38, 55, 38, 255));
+    }
+
+    const node = new Node('FarmPageBackground');
+    addUiTransform(node, 720, 1280);
+    const sprite = node.addComponent(Sprite);
+    sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+    sprite.spriteFrame = this.farmBackgroundSprite;
+    sprite.color = Color.WHITE;
+    return node;
+  }
+
+  private buildFarmPanel(parent: Node, root: Node): void {
+    clearChildrenByName(parent, ['FarmPageBackground', 'FarmPageRoot']);
+
+    const pageBackground = this.createFarmPageBackground();
+    parent.addChild(pageBackground);
+    pageBackground.setSiblingIndex(25);
+    pageBackground.setPosition(0, 0, 0);
+    pageBackground.active = false;
+    this.farmPageBackground = pageBackground;
+
+    if (!this.farmBackgroundSprite) {
+      const fieldPanel = createPanel('FarmFieldPanel', 660, 720, new Color(87, 76, 45, 255));
+      pageBackground.addChild(fieldPanel);
+      fieldPanel.setPosition(0, -70, 0);
+
+      for (let i = 0; i < 5; i += 1) {
+        const ridge = createPanel(`FarmRidge_${i + 1}`, 610, 34, new Color(112, 95, 54, 255));
+        fieldPanel.addChild(ridge);
+        ridge.setPosition(0, 250 - i * 118, 0);
+      }
+
+      const skyPanel = createPanel('FarmSkyPanel', 660, 230, new Color(82, 128, 108, 255));
+      pageBackground.addChild(skyPanel);
+      skyPanel.setPosition(0, 445, 0);
+    }
+
+    const panel = createPanel('FarmPageRoot', 680, 900, new Color(58, 35, 23, 232));
     parent.addChild(panel);
-    panel.setSiblingIndex(9998);
-    panel.setPosition(0, 8, 0);
+    panel.setSiblingIndex(35);
+    panel.setPosition(0, -74, 0);
     panel.active = false;
     this.farmPanel = panel;
 
-    const titleNode = createLabel('FarmTitleLabel', '桃源小农场', 25, new Color(255, 226, 160, 255));
+    const titleNode = createLabel('FarmTitleLabel', '\u6843\u6e90\u5c0f\u519c\u573a', 28, new Color(255, 226, 160, 255));
     panel.addChild(titleNode);
-    titleNode.setPosition(0, 174, 0);
+    titleNode.setPosition(0, 384, 0);
 
     const summaryNode = createLabel('FarmSummaryLabel', '', 15, new Color(255, 245, 220, 255));
     const summaryLabel = summaryNode.getComponent(Label);
@@ -3027,22 +3127,42 @@ export class AutoDemoGame extends Component {
       summaryLabel.lineHeight = 21;
     }
     panel.addChild(summaryNode);
-    summaryNode.setPosition(0, 128, 0);
+    summaryNode.setPosition(0, 334, 0);
     this.farmSummaryLabel = summaryLabel;
 
+    const farmVisualRoot = findNodeByName(root, 'FarmSystem') ?? new Node('FarmSystem');
+    if (farmVisualRoot.parent !== panel) {
+      farmVisualRoot.removeFromParent();
+      panel.addChild(farmVisualRoot);
+    }
+    farmVisualRoot.setPosition(-220, 120, 0);
+    applyLayerRecursively(farmVisualRoot, Layers.Enum.UI_2D);
+    const farmVisualTransform = farmVisualRoot.getComponent(UITransform) ?? farmVisualRoot.addComponent(UITransform);
+    farmVisualTransform.setContentSize(300, 340);
+
+    const farmManager = farmVisualRoot.getComponent(FarmManager) ?? farmVisualRoot.addComponent(FarmManager);
+    farmManager.columns = 1;
+    farmManager.plotSize = 104;
+    farmManager.cropSize = 72;
+    farmManager.horizontalGap = 112;
+    farmManager.verticalGap = 112;
+    farmManager.cropOffsetY = 0;
+    farmManager.buildFarmPlots(FARM_PLOT_SEQUENCE.length);
+    this.farmManager = farmManager;
+
     const plotRows: Array<{ id: FarmPlotId; y: number }> = [
-      { id: FarmPlotId.TeaTree, y: 62 },
-      { id: FarmPlotId.FlowerBed, y: -28 },
-      { id: FarmPlotId.FruitTree, y: -118 },
+      { id: FarmPlotId.TeaTree, y: 174 },
+      { id: FarmPlotId.FlowerBed, y: 34 },
+      { id: FarmPlotId.FruitTree, y: -106 },
     ];
 
     this.farmButtonLabels = {};
     this.farmDescriptionLabels = {};
     for (const row of plotRows) {
       const config = getFarmPlotConfig(row.id);
-      const card = createPanel(`FarmCard_${config.id}`, 520, 72, new Color(255, 245, 220, 45));
+      const card = createPanel(`FarmCard_${config.id}`, 360, 104, new Color(255, 239, 198, 76));
       panel.addChild(card);
-      card.setPosition(0, row.y, 0);
+      card.setPosition(122, row.y, 0);
 
       const descNode = createLabel(`FarmDesc_${config.id}`, this.getFarmPlotDescription(row.id), 15, new Color(255, 245, 220, 255));
       const descLabel = descNode.getComponent(Label);
@@ -3051,20 +3171,20 @@ export class AutoDemoGame extends Component {
         this.farmDescriptionLabels[row.id] = descLabel;
       }
       card.addChild(descNode);
-      descNode.setPosition(-100, 0, 0);
+      descNode.setPosition(-72, 12, 0);
 
-      const button = createButton(`FarmUpgrade_${config.id}`, config.shortName, 150, 48, () => this.upgradeFarmPlot(row.id));
+      const button = createButton(`FarmUpgrade_${config.id}`, config.shortName, 126, 48, () => this.upgradeFarmPlot(row.id));
       card.addChild(button);
-      button.setPosition(166, 0, 0);
+      button.setPosition(116, -20, 0);
       const buttonLabel = button.getChildByName(`FarmUpgrade_${config.id}_Label`)?.getComponent(Label) ?? null;
       if (buttonLabel) {
         this.farmButtonLabels[row.id] = buttonLabel;
       }
     }
 
-    const closeButton = createButton('FarmCloseButton', '返回茶肆', 150, 44, () => this.hideFarmPanel());
+    const closeButton = createButton('FarmCloseButton', '\u8fd4\u56de\u8336\u8086', 150, 44, () => this.hideFarmPanel());
     panel.addChild(closeButton);
-    closeButton.setPosition(0, -184, 0);
+    closeButton.setPosition(0, -382, 0);
     this.refreshFarmPanel();
   }
 
@@ -3073,9 +3193,7 @@ export class AutoDemoGame extends Component {
   }
 
   private hideFarmPanel(): void {
-    if (this.farmPanel) {
-      this.farmPanel.active = false;
-    }
+    this.switchMainTab('teahouse');
   }
 
   private getFarmPlotDescription(plotId: FarmPlotId): string {
@@ -3084,7 +3202,7 @@ export class AutoDemoGame extends Component {
 
   private refreshFarmPanel(): void {
     if (this.farmSummaryLabel) {
-      this.farmSummaryLabel.string = `今天第 ${this.businessDay} 天｜农场每天开业前收获一次\n长期升级农场补原料，临时缺料仍可用补货救急`;
+      this.farmSummaryLabel.string = `\u7b2c ${this.businessDay} \u5929\uff5c\u5f00\u4e1a\u524d\u81ea\u52a8\u6536\u83b7\u4e00\u6b21\n\u5347\u7ea7\u519c\u573a\u53ef\u957f\u671f\u8865\u539f\u6599\uff0c\u7f3a\u6599\u65f6\u4ecd\u53ef\u7528\u8865\u8d27\u6551\u6025`;
     }
 
     for (const plotId of FARM_PLOT_SEQUENCE) {
@@ -3097,6 +3215,20 @@ export class AutoDemoGame extends Component {
         label.string = this.getFarmButtonText(plotId);
       }
     }
+    this.refreshFarmVisual();
+  }
+
+  private refreshFarmVisual(): void {
+    if (!this.farmManager) {
+      return;
+    }
+
+    FARM_PLOT_SEQUENCE.forEach((plotId, index) => {
+      const plotSave = this.getFarmSavePlot(plotId);
+      const visible = plotSave.unlocked && plotSave.level > 0;
+      const stage = Math.max(0, plotSave.level - 1);
+      this.farmManager?.updateCrop(index, stage, visible);
+    });
   }
 
   private harvestFarmForNewDay(): string {
@@ -3913,12 +4045,12 @@ ${tableText}桌｜${waitingCount}` : `${labelPrefix}
     }
 
     const mainTabTexts: Partial<Record<MainTab, string>> = {
-      teahouse: this.currentMainTab === 'teahouse' ? '【茶肆】' : '茶肆',
-      farm: this.currentMainTab === 'farm' ? '【农场】' : '农场',
-      staff: this.currentMainTab === 'staff' ? '【员工】' : '员工',
-      research: this.currentMainTab === 'research' ? '【研发】' : '研发',
-      collection: this.currentMainTab === 'collection' ? '【图鉴】' : '图鉴',
-      decoration: this.currentMainTab === 'decoration' ? '【更多】' : '更多',
+      teahouse: '茶肆',
+      farm: '农场',
+      staff: '员工',
+      research: '研发',
+      collection: '图鉴',
+      decoration: '更多',
     };
 
     const viewModel: HudViewModel = {
@@ -3968,6 +4100,19 @@ ${tableText}桌｜${waitingCount}` : `${labelPrefix}
 
   private handleGameHide(): void {
     SaveManager.flushPendingSave();
+  }
+
+  private hideLegacyManualSceneButtons(root: Node): void {
+    const legacyButtons = ['BrewButton', 'ServeButton'];
+    for (const buttonName of legacyButtons) {
+      const buttonNode = findNodeByName(root, buttonName);
+      if (!buttonNode) {
+        continue;
+      }
+
+      buttonNode.removeFromParent();
+      buttonNode.destroy();
+    }
   }
 
   private refreshStatusLabels(): void {

@@ -18,6 +18,8 @@ export interface TeaReadyResult {
 
 @ccclass('Workstation')
 export class Workstation extends Component {
+  private static readonly MANUAL_FINISH_COOLDOWN_MS = 200;
+
   @property(Label)
   queueLabel: Label | null = null;
 
@@ -32,6 +34,8 @@ export class Workstation extends Component {
   private currentOrder: TeaOrder | null = null;
   private currentTotalSeconds = 0;
   private onTeaReadyCallback: ((result: TeaReadyResult) => void) | null = null;
+  private currentOrderLastUpdatedAt = 0;
+  private lastManualFinishAt = 0;
   private lastRenderedQueueText = '';
   private lastRenderedStationLevel = -1;
   private lastRenderedSpeedMultiplier = -1;
@@ -56,7 +60,6 @@ export class Workstation extends Component {
   enqueue(recipe: RecipeConfig): boolean {
     const totalCount = this.queue.length + (this.currentOrder ? 1 : 0);
     if (totalCount >= this.queueLimit) {
-      console.log('操作台队列已满');
       return false;
     }
 
@@ -76,9 +79,17 @@ export class Workstation extends Component {
       return;
     }
 
-    this.currentOrder.remainingSeconds -= deltaTime * this.speedMultiplier;
+    const prevProgress = this.getCurrentProgress();
+    this.advanceCurrentOrder(Date.now());
     const progress = this.getCurrentProgress();
-    this.syncQteWindow(progress);
+    const skippedPerfectWindow = prevProgress < Workstation.PERFECT_WINDOW_START
+      && progress >= Workstation.PERFECT_WINDOW_END;
+    if (skippedPerfectWindow) {
+      this.syncQteWindow(progress, true, true);
+    } else {
+      this.syncQteWindow(progress);
+    }
+
     if (progress >= Workstation.PERFECT_WINDOW_END) {
       this.finishCurrentOrder('normal', false);
       return;
@@ -103,20 +114,28 @@ export class Workstation extends Component {
     this.queue.length = 0;
     this.currentOrder = null;
     this.currentTotalSeconds = 0;
+    this.currentOrderLastUpdatedAt = 0;
     this.syncQteWindow(0, true);
     this.refreshView(true);
   }
 
   manualFinishTea(): TeaReadyResult | null {
+    const now = Date.now();
+    if (now - this.lastManualFinishAt < Workstation.MANUAL_FINISH_COOLDOWN_MS) {
+      return null;
+    }
+
     if (!this.currentOrder) {
       return null;
     }
 
+    this.advanceCurrentOrder(now);
     const progress = this.getCurrentProgress();
     if (progress < Workstation.PERFECT_WINDOW_START) {
       return null;
     }
 
+    this.lastManualFinishAt = now;
     const quality = progress <= Workstation.PERFECT_WINDOW_END ? 'perfect' : 'normal';
     return this.finishCurrentOrder(quality, true);
   }
@@ -128,6 +147,7 @@ export class Workstation extends Component {
 
     this.currentOrder = this.queue.shift() ?? null;
     this.currentTotalSeconds = this.currentOrder?.recipe.makeSeconds ?? 0;
+    this.currentOrderLastUpdatedAt = Date.now();
     this.syncQteWindow(0, true);
     this.refreshView(true);
   }
@@ -193,6 +213,7 @@ export class Workstation extends Component {
 
     this.currentOrder = null;
     this.currentTotalSeconds = 0;
+    this.currentOrderLastUpdatedAt = 0;
     this.syncQteWindow(0, true);
     this.onTeaReadyCallback?.(result);
     this.tryStartNext();
@@ -208,13 +229,36 @@ export class Workstation extends Component {
     return Math.max(0, Math.min(1, progress));
   }
 
-  private syncQteWindow(progress: number, forceInactive = false): void {
+  private advanceCurrentOrder(now: number): void {
+    if (!this.currentOrder) {
+      this.currentOrderLastUpdatedAt = 0;
+      return;
+    }
+
+    if (this.currentOrderLastUpdatedAt <= 0) {
+      this.currentOrderLastUpdatedAt = now;
+      return;
+    }
+
+    const elapsedSeconds = Math.max(0, (now - this.currentOrderLastUpdatedAt) / 1000);
+    if (elapsedSeconds <= 0) {
+      return;
+    }
+
+    this.currentOrder.remainingSeconds = Math.max(
+      0,
+      this.currentOrder.remainingSeconds - elapsedSeconds * this.speedMultiplier,
+    );
+    this.currentOrderLastUpdatedAt = now;
+  }
+
+  private syncQteWindow(progress: number, forceInactive = false, forceEmit = false): void {
     const nextActive = !forceInactive
       && !!this.currentOrder
       && progress >= Workstation.PERFECT_WINDOW_START
       && progress < Workstation.PERFECT_WINDOW_END;
 
-    if (nextActive === this.qteWindowActive) {
+    if (nextActive === this.qteWindowActive && !forceEmit) {
       return;
     }
 

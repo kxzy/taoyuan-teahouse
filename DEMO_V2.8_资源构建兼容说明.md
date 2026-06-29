@@ -4,25 +4,27 @@
 
 V2.8 面向微信小游戏构建和后续团队协作，处理图片资源中文路径的潜在风险。本轮不删除原中文资源，而是新增英文别名资源，并让代码优先加载英文路径，中文路径作为回退。
 
-## 新增英文资源别名
+## 英文资源路径
 
-当前在 `assets/resources/image` 下新增了以下英文文件：
+当前在 `assets/resources/image` 下使用以下英文资源文件：
 
 - `bg_teahouse.png`：对应原 `茶铺.png`
 - `seat_table.png`：对应原 `桌椅.png`
-- `customer_scholar.png`：对应原 `书生.png`
+- `customer_scholar_wait.png` / `customer_scholar_drink.png` / `customer_scholar_happy.png`：对应书生不同状态
+- `customer_lady_pose.png` / `customer_lady_smile.png`：对应女客人状态
+- `customer_swordsman_smile.png` / `customer_swordsman_grin.png` / `customer_swordsman_angry.png`：对应侠客状态
 - `tea_green.png`：对应原 `茉莉绿茶.png`
 - `tea_black.png`：对应原 `蜜香红茶.png`
 - `ui_dialog.png`：对应原 `对话框.png`
-- `ui_button.png`：对应原 `九宫格.png`
+- `BrewButton.png` / `ServeButton.png`：对应泡茶、上茶按钮素材；通用 `button` textureKey 当前回退到这两张现有按钮图
 
 ## 代码调整
 
-`AutoDemoGame.ts` 中的 `TEXTURE_PATHS` 改为数组形式。加载图片时会先尝试英文路径，例如 `image/bg_teahouse/texture`，如果失败再回退到中文路径，例如 `image/茶铺/texture`。这样既能降低微信小游戏构建风险，又不会立刻破坏当前 Cocos 项目已有资源引用。
+`GameConfig.ts` 中的 `TEAHOUSE_TEXTURE_PATHS` 使用数组形式。加载图片时会先尝试分组英文路径，例如 `image/background/bg_teahouse/texture`，必要时再尝试兼容路径。这样既能降低微信小游戏构建风险，又把资源入口集中到一处维护。
 
 ## 当前测试重点
 
-在 Cocos Creator 中刷新资源导入后，运行 `Demo.scene`，检查背景、桌椅、客人、对话框、绿茶、红茶、按钮底图是否正常显示。若英文路径未生成对应导入数据，控制台可能先出现一次英文路径未命中警告，然后回退中文路径成功；刷新资源后应优先命中英文路径。
+在 Cocos Creator 中刷新资源导入后，优先运行 `Main.scene`，检查背景、桌椅、客人、对话框、绿茶、红茶、按钮底图是否正常显示。当前所有 `TEAHOUSE_TEXTURE_PATHS` 都应至少命中一个真实资源；如果控制台出现图片加载失败，应先检查 `GameConfig.ts` 中对应 textureKey 的路径。
 
 ## 下一轮建议
 

@@ -11,17 +11,17 @@
 export const TEAHOUSE_TEXTURE_PATHS = {
   background: ['image/background/bg_teahouse/texture', 'image/bg_teahouse/texture'],
   seat: ['image/furniture/seat_table/texture', 'image/seat_table/texture'],
-  counter: ['image/workstation_counter/texture', 'image/counter/texture'],
-  woodSign: ['image/decor_wood_sign/texture'],
-  paperLamp: ['image/decor_paper_lamp/texture'],
-  celadonSet: ['image/decor_celadon_set/texture'],
-  flowerVase: ['image/decor_flower_vase/texture'],
-  screen: ['image/decor_screen/texture'],
-  scholar: ['image/customer/customer_scholar/texture', 'image/customer_scholar/texture'],
+  counter: ['image/furniture/table_group_basic/texture', 'image/furniture/seat_table/texture'],
+  woodSign: ['image/ui/ui_dialog/texture'],
+  paperLamp: ['image/ui/BrewButton/texture'],
+  celadonSet: ['image/tea/tea_green/texture'],
+  flowerVase: ['image/tea/tea_black/texture'],
+  screen: ['image/ui/ui_dialog/texture'],
+  scholar: ['image/customer/customer_scholar_wait/texture', 'image/customer/customer_scholar_happy/texture'],
   greenTea: ['image/tea/tea_green/texture', 'image/tea_green/texture'],
   blackTea: ['image/tea/tea_black/texture', 'image/tea_black/texture'],
   dialog: ['image/ui/ui_dialog/texture', 'image/ui_dialog/texture'],
-  button: ['image/ui/ui_button/texture', 'image/ui_button/texture'],
+  button: ['image/ui/BrewButton/texture', 'image/ui/ServeButton/texture'],
 } as const;
 
 export type TeahouseTextureKey = keyof typeof TEAHOUSE_TEXTURE_PATHS;

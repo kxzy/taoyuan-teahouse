@@ -104,7 +104,7 @@ const checks = [
   {
     name: '补货购买仍通过业务层处理',
     file: 'auto',
-    pattern: /EventBus\.on\(GameEventName\.RequestBuySupplyItem, this\.handleRequestBuySupplyItemEvent\)[\s\S]*private buySupplyItem/,
+    pattern: /EventBus\.on\(GameEventName\.RequestBuySupplyItem, this\.handleRequestBuySupplyItemEvent(?:, this)?\)[\s\S]*private buySupplyItem/,
   },
   {
     name: 'Cocos 类型检查配置位于 tools 目录',

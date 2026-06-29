@@ -36,12 +36,12 @@ export class FarmSystem {
     const config = getFarmPlotConfig(plotId);
     const savePlot = this.getSavePlot(plotId);
     if (saveData.level < config.unlockShopLevel && !savePlot.unlocked) {
-      return `${config.name}\n店铺 ${config.unlockShopLevel} 级解锁，之后每天产出${config.ingredientName}`;
+      return `${config.name}\n\u5e97\u94fa ${config.unlockShopLevel} \u7ea7\u89e3\u9501\uff0c\u4e4b\u540e\u6bcf\u5929\u4ea7\u51fa${config.ingredientName}`;
     }
     if (!savePlot.unlocked || savePlot.level <= 0) {
-      return `${config.name}\n可解锁，明天开始产出${config.ingredientName}`;
+      return `${config.name}\n\u53ef\u89e3\u9501\uff0c\u660e\u5929\u5f00\u59cb\u4ea7\u51fa${config.ingredientName}`;
     }
-    return `${config.name} Lv.${savePlot.level}\n明天产出 ${calculateFarmYield(config, savePlot)} ${config.ingredientName}`;
+    return `${config.name} Lv.${savePlot.level}\n\u660e\u5929\u4ea7\u51fa ${calculateFarmYield(config, savePlot)} ${config.ingredientName}`;
   }
 
   getButtonText(plotId: FarmPlotId): string {
@@ -49,15 +49,15 @@ export class FarmSystem {
     const config = getFarmPlotConfig(plotId);
     const savePlot = this.getSavePlot(plotId);
     if (saveData.level < config.unlockShopLevel && !savePlot.unlocked) {
-      return `${config.shortName}\n${config.unlockShopLevel}级解锁`;
+      return `${config.shortName}\n${config.unlockShopLevel}\u7ea7\u89e3\u9501`;
     }
     if (!savePlot.unlocked || savePlot.level <= 0) {
-      return `${config.shortName}\n解锁`;
+      return `${config.shortName}\n\u89e3\u9501`;
     }
     if (savePlot.level >= config.maxLevel) {
-      return `${config.shortName}\n满级${calculateFarmYield(config, savePlot)}`;
+      return `${config.shortName}\n\u6ee1\u7ea7 ${calculateFarmYield(config, savePlot)}`;
     }
-    return `${config.shortName}\n升${savePlot.level + 1}级 ${getFarmUpgradeCost(config, savePlot)}金`;
+    return `${config.shortName}\n\u5347 ${savePlot.level + 1} \u7ea7 ${getFarmUpgradeCost(config, savePlot)}\u91d1`;
   }
 
   formatFarmText(): string {
@@ -67,10 +67,10 @@ export class FarmSystem {
         const config = getFarmPlotConfig(plotId);
         const savePlot = this.getSavePlot(plotId);
         if (saveData.level < config.unlockShopLevel && !savePlot.unlocked) {
-          return `${config.shortName}${config.unlockShopLevel}级`;
+          return `${config.shortName}${config.unlockShopLevel}\u7ea7`;
         }
         if (!savePlot.unlocked || savePlot.level <= 0) {
-          return `${config.shortName}可解锁`;
+          return `${config.shortName}\u53ef\u89e3\u9501`;
         }
         return `${config.shortName}${savePlot.level}`;
       })
@@ -98,7 +98,7 @@ export class FarmSystem {
 
     saveData.farm.lastHarvestDay = this.context.getBusinessDay();
     this.context.requestDeferredSave();
-    return gained.length > 0 ? `农场收获：${gained.join('、')}` : '';
+    return gained.length > 0 ? `\u519c\u573a\u6536\u83b7\uff1a${gained.join('\u3001')}` : '';
   }
 
   upgradePlot(plotId: FarmPlotId): FarmUpgradeResult {
@@ -107,7 +107,7 @@ export class FarmSystem {
     const savePlot = this.getSavePlot(plotId);
 
     if (saveData.level < config.unlockShopLevel) {
-      return { changed: false, message: `${config.name} 需要店铺 ${config.unlockShopLevel} 级解锁` };
+      return { changed: false, message: `${config.name} \u9700\u8981\u5e97\u94fa ${config.unlockShopLevel} \u7ea7\u89e3\u9501` };
     }
 
     if (!savePlot.unlocked || savePlot.level <= 0) {
@@ -116,19 +116,19 @@ export class FarmSystem {
       this.context.unlockStaffByProgress();
       this.context.requestDeferredSave();
       this.emitPlotChanged(config, savePlot);
-      return { changed: true, message: `解锁 ${config.name}，明天开始产出 ${config.ingredientName}` };
+      return { changed: true, message: `\u89e3\u9501 ${config.name}\uff0c\u660e\u5929\u5f00\u59cb\u4ea7\u51fa${config.ingredientName}` };
     }
 
     if (savePlot.level >= config.maxLevel) {
       return {
         changed: false,
-        message: `${config.name} 已满级，每天产出 ${calculateFarmYield(config, savePlot)} ${config.ingredientName}`,
+        message: `${config.name} \u5df2\u6ee1\u7ea7\uff0c\u6bcf\u5929\u4ea7\u51fa ${calculateFarmYield(config, savePlot)} ${config.ingredientName}`,
       };
     }
 
     const cost = getFarmUpgradeCost(config, savePlot);
     if (saveData.coins < cost) {
-      return { changed: false, message: `金币不足，升级 ${config.name} 需要 ${cost} 金币` };
+      return { changed: false, message: `\u91d1\u5e01\u4e0d\u8db3\uff0c\u5347\u7ea7 ${config.name} \u9700\u8981 ${cost} \u91d1\u5e01` };
     }
 
     saveData.coins -= cost;
@@ -138,7 +138,7 @@ export class FarmSystem {
     this.emitPlotChanged(config, savePlot);
     return {
       changed: true,
-      message: `${config.name} 升到 ${savePlot.level} 级，明天产量提升到 ${calculateFarmYield(config, savePlot)} ${config.ingredientName}`,
+      message: `${config.name} \u5347\u5230 ${savePlot.level} \u7ea7\uff0c\u660e\u5929\u4ea7\u91cf\u63d0\u5347\u5230 ${calculateFarmYield(config, savePlot)} ${config.ingredientName}`,
     };
   }
 

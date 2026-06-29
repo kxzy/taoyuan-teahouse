@@ -14,8 +14,8 @@ V2.7 面向微信小游戏构建前检查，优先降低底部安全区裁切风
 
 ## 当前测试重点
 
-在 Cocos 预览和微信开发者工具中分别运行 `Demo.scene`，检查底部两排茶饮按钮、两排功能按钮和 Debug 开关是否都在可点击区域内。重点观察 iPhone 全面屏比例、安卓长屏比例和较窄屏幕下是否有底部裁切。如果出现裁切，下一轮应继续上移按钮区或缩小按钮高度。
+在 Cocos 预览和微信开发者工具中优先运行 `Main.scene`，检查底部两排茶饮按钮、两排功能按钮和 Debug 开关是否都在可点击区域内。`Demo.scene` 仅保留为旧入口兼容场景。重点观察 iPhone 全面屏比例、安卓长屏比例和较窄屏幕下是否有底部裁切。如果出现裁切，下一轮应继续上移按钮区或缩小按钮高度。
 
 ## 下一轮建议
 
-V2.8 建议做资源构建兼容：把中文图片资源建立英文别名或统一改为英文路径，例如 `bg_teahouse`、`seat_table`、`customer_scholar`、`tea_green`、`tea_black`、`ui_dialog`、`ui_button`。这样更适合微信小游戏构建、分包和后续团队协作。
+V2.8 建议做资源构建兼容：把中文图片资源建立英文别名或统一改为英文路径，例如 `bg_teahouse`、`seat_table`、`customer_scholar_wait`、`tea_green`、`tea_black`、`ui_dialog`、`BrewButton`、`ServeButton`。这样更适合微信小游戏构建、分包和后续团队协作。

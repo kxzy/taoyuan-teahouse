@@ -4,6 +4,11 @@ import { RecipeId } from './GameConfig';
 
 type EventHandler<T = unknown> = (payload: T) => void;
 
+interface EventListener<T = unknown> {
+  handler: EventHandler<T>;
+  target?: unknown;
+}
+
 export type MainTabId = 'teahouse' | 'farm' | 'staff' | 'research' | 'collection' | 'decoration';
 export type PrimaryActionId = 'upgrade' | 'supply' | 'extendDay' | 'dayButton' | 'showHelp';
 export type SupplyItemId = 'teaLeaf' | 'sugar' | 'flower' | 'fruit';
@@ -173,30 +178,36 @@ export enum GameEventName {
 }
 
 export class EventBus {
-  private static listeners = new Map<string, Set<EventHandler>>();
+  private static listeners = new Map<string, EventListener<unknown>[]>();
 
-  static on<T = unknown>(eventName: string, handler: EventHandler<T>): void {
-    const handlers = EventBus.listeners.get(eventName) ?? new Set<EventHandler>();
-    handlers.add(handler as EventHandler);
-    EventBus.listeners.set(eventName, handlers);
-  }
-
-  static off<T = unknown>(eventName: string, handler: EventHandler<T>): void {
-    const handlers = EventBus.listeners.get(eventName);
-    if (!handlers) {
+  static on<T = unknown>(eventName: string, handler: EventHandler<T>, target?: unknown): void {
+    const listeners = EventBus.listeners.get(eventName) ?? [];
+    if (listeners.some((listener) => listener.handler === handler && listener.target === target)) {
       return;
     }
-    handlers.delete(handler as EventHandler);
-    if (handlers.size === 0) {
-      EventBus.listeners.delete(eventName);
+    listeners.push({ handler: handler as EventHandler<unknown>, target });
+    EventBus.listeners.set(eventName, listeners);
+  }
+
+  static off<T = unknown>(eventName: string, handler: EventHandler<T>, target?: unknown): void {
+    const listeners = EventBus.listeners.get(eventName);
+    if (!listeners) {
+      return;
     }
+    const filtered = listeners.filter((listener) => listener.handler !== handler || listener.target !== target);
+    if (filtered.length === 0) {
+      EventBus.listeners.delete(eventName);
+      return;
+    }
+    EventBus.listeners.set(eventName, filtered);
   }
 
   static emit<T = unknown>(eventName: string, payload: T): void {
-    const handlers = EventBus.listeners.get(eventName);
-    if (!handlers) {
+    const listeners = EventBus.listeners.get(eventName);
+    if (!listeners) {
       return;
     }
-    handlers.forEach((handler) => handler(payload));
+    const snapshot = [...listeners];
+    snapshot.forEach((listener) => listener.handler.call(listener.target, payload));
   }
 }

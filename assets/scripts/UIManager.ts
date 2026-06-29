@@ -31,7 +31,10 @@ import {
   SupplyShopViewModel,
   UnlockSummary,
 } from './EventBus';
+import { CollectionRecipeItem, CollectionUI } from './CollectionUI';
 import { RecipeConfig, RecipeId } from './GameConfig';
+import { NavigationBar } from './NavigationBar';
+import { PopupBuilder } from './PopupBuilder';
 
 const { ccclass, property } = _decorator;
 
@@ -110,6 +113,8 @@ export class UIManager extends Component {
   private collectionPanel: Node | null = null;
   private collectionSummaryLabel: Label | null = null;
   private collectionListLabel: Label | null = null;
+  private collectionGridUi: CollectionUI | null = null;
+  private navigationBar: NavigationBar | null = null;
   private recipeButtonLabels: Partial<Record<RecipeId, Label>> = {};
   private primaryButtonLabels: Partial<Record<'upgrade' | 'supply' | 'nextDay' | 'extend', Label>> = {};
   private mainTabLabels: Partial<Record<MainTabId, Label>> = {};
@@ -130,29 +135,29 @@ export class UIManager extends Component {
   onLoad(): void {
     this.ensureRootTransform();
     this.buildCollectionPanel();
-    EventBus.on(GameEventName.HudMessage, this.handleHudMessageEvent);
-    EventBus.on(GameEventName.HudViewModel, this.handleHudViewModelEvent);
-    EventBus.on(GameEventName.PopupOfflineReward, this.handleOfflineRewardPopupEvent);
-    EventBus.on(GameEventName.PopupReviveOffer, this.handleReviveOfferPopupEvent);
-    EventBus.on(GameEventName.PopupUpgradeUnlock, this.handleUpgradeUnlockPopupEvent);
-    EventBus.on(GameEventName.PopupResearchResult, this.handleResearchResultPopupEvent);
-    EventBus.on(GameEventName.SupplyShopViewModel, this.handleSupplyShopViewModelEvent);
-    EventBus.on(GameEventName.CollectionViewModel, this.handleCollectionViewModelEvent);
-    EventBus.on(GameEventName.PlayEffect, this.handlePlayEffectEvent);
-    EventBus.on(GameEventName.OnReviveSuccess, this.handleReviveSuccessEvent);
+    EventBus.on(GameEventName.HudMessage, this.handleHudMessageEvent, this);
+    EventBus.on(GameEventName.HudViewModel, this.handleHudViewModelEvent, this);
+    EventBus.on(GameEventName.PopupOfflineReward, this.handleOfflineRewardPopupEvent, this);
+    EventBus.on(GameEventName.PopupReviveOffer, this.handleReviveOfferPopupEvent, this);
+    EventBus.on(GameEventName.PopupUpgradeUnlock, this.handleUpgradeUnlockPopupEvent, this);
+    EventBus.on(GameEventName.PopupResearchResult, this.handleResearchResultPopupEvent, this);
+    EventBus.on(GameEventName.SupplyShopViewModel, this.handleSupplyShopViewModelEvent, this);
+    EventBus.on(GameEventName.CollectionViewModel, this.handleCollectionViewModelEvent, this);
+    EventBus.on(GameEventName.PlayEffect, this.handlePlayEffectEvent, this);
+    EventBus.on(GameEventName.OnReviveSuccess, this.handleReviveSuccessEvent, this);
   }
 
   onDestroy(): void {
-    EventBus.off(GameEventName.HudMessage, this.handleHudMessageEvent);
-    EventBus.off(GameEventName.HudViewModel, this.handleHudViewModelEvent);
-    EventBus.off(GameEventName.PopupOfflineReward, this.handleOfflineRewardPopupEvent);
-    EventBus.off(GameEventName.PopupReviveOffer, this.handleReviveOfferPopupEvent);
-    EventBus.off(GameEventName.PopupUpgradeUnlock, this.handleUpgradeUnlockPopupEvent);
-    EventBus.off(GameEventName.PopupResearchResult, this.handleResearchResultPopupEvent);
-    EventBus.off(GameEventName.SupplyShopViewModel, this.handleSupplyShopViewModelEvent);
-    EventBus.off(GameEventName.CollectionViewModel, this.handleCollectionViewModelEvent);
-    EventBus.off(GameEventName.PlayEffect, this.handlePlayEffectEvent);
-    EventBus.off(GameEventName.OnReviveSuccess, this.handleReviveSuccessEvent);
+    EventBus.off(GameEventName.HudMessage, this.handleHudMessageEvent, this);
+    EventBus.off(GameEventName.HudViewModel, this.handleHudViewModelEvent, this);
+    EventBus.off(GameEventName.PopupOfflineReward, this.handleOfflineRewardPopupEvent, this);
+    EventBus.off(GameEventName.PopupReviveOffer, this.handleReviveOfferPopupEvent, this);
+    EventBus.off(GameEventName.PopupUpgradeUnlock, this.handleUpgradeUnlockPopupEvent, this);
+    EventBus.off(GameEventName.PopupResearchResult, this.handleResearchResultPopupEvent, this);
+    EventBus.off(GameEventName.SupplyShopViewModel, this.handleSupplyShopViewModelEvent, this);
+    EventBus.off(GameEventName.CollectionViewModel, this.handleCollectionViewModelEvent, this);
+    EventBus.off(GameEventName.PlayEffect, this.handlePlayEffectEvent, this);
+    EventBus.off(GameEventName.OnReviveSuccess, this.handleReviveSuccessEvent, this);
   }
 
   bindRecipeButtonLabel(recipeId: RecipeId, label: Label | null): void {
@@ -171,6 +176,10 @@ export class UIManager extends Component {
     if (label) {
       this.mainTabLabels[tabId] = label;
     }
+  }
+
+  bindNavigationBar(navigationBar: NavigationBar | null): void {
+    this.navigationBar = navigationBar;
   }
 
   requestMakeRecipe(recipeId: RecipeId): void {
@@ -279,6 +288,7 @@ export class UIManager extends Component {
       this.updateLabel(label, nextText, previousText, (next) => {
         this.lastMainTabTexts[tabId] = next;
       });
+      this.navigationBar?.setTabText(tabId, nextText);
     });
   };
 
@@ -435,6 +445,15 @@ export class UIManager extends Component {
       return;
     }
     this.collectionPanel.active = viewModel.active;
+    if (this.collectionGridUi) {
+      const visualRecipes: CollectionRecipeItem[] = viewModel.recipes.map((recipe) => ({
+        id: recipe.id,
+        name: recipe.name,
+        icon: null,
+        unlocked: recipe.unlocked,
+      }));
+      this.collectionGridUi.renderCollection(visualRecipes);
+    }
     if (!viewModel.active) {
       return;
     }
@@ -473,13 +492,20 @@ export class UIManager extends Component {
 
   private showGenericPopup(request: GenericPopupRequest): void {
     this.bringUiRootToFront();
+    const useSimplePopupBuilder = !this.upgradeUnlockPrefab && !request.secondaryText && !request.tertiaryText;
     const popup = this.upgradeUnlockPrefab
       ? instantiate(this.upgradeUnlockPrefab)
-      : this.createFallbackPopupNode('GenericPopup');
+      : useSimplePopupBuilder
+        ? this.createPopupBuilderNode('GenericPopup', request)
+        : this.createFallbackPopupNode('GenericPopup');
     popup.name = 'GenericPopup';
     this.node.addChild(popup);
     popup.setSiblingIndex(30000);
     this.activeGenericPopup = popup;
+
+    if (useSimplePopupBuilder) {
+      return;
+    }
 
     this.setLabelText(popup, 'Title_Label', request.title);
     this.setLabelText(popup, 'Content_Label', request.body);
@@ -690,8 +716,8 @@ export class UIManager extends Component {
   private buildCollectionPanel(): void {
     const panel = new Node('CollectionPanel');
     const panelTransform = panel.addComponent(UITransform);
-    panelTransform.setContentSize(620, 480);
-    this.drawRoundPanel(panel, 620, 480, new Color(55, 32, 20, 238), 18);
+    panelTransform.setContentSize(660, 560);
+    this.drawRoundPanel(panel, 660, 560, new Color(55, 32, 20, 238), 18);
     panel.active = false;
     this.node.addChild(panel);
     this.collectionPanel = panel;
@@ -705,17 +731,33 @@ export class UIManager extends Component {
 
     const title = this.createLabelNode('CollectionTitle', '茶谱图鉴', 540, 44, 25, new Color(255, 226, 160, 255));
     panel.addChild(title.node);
-    title.node.setPosition(0, 190, 0);
+    title.node.setPosition(0, 224, 0);
 
     const summary = this.createLabelNode('CollectionSummary', '', 540, 36, 16, new Color(255, 245, 220, 255));
     panel.addChild(summary.node);
-    summary.node.setPosition(0, 148, 0);
+    summary.node.setPosition(0, 184, 0);
     this.collectionSummaryLabel = summary.label;
+
+    const gridContainer = new Node('CollectionGridRoot');
+    const gridTransform = gridContainer.addComponent(UITransform);
+    gridTransform.setContentSize(560, 250);
+    panel.addChild(gridContainer);
+    gridContainer.setPosition(-248, 94, 0);
+
+    const collectionGridUi = panel.addComponent(CollectionUI);
+    collectionGridUi.gridContainer = gridContainer;
+    collectionGridUi.columns = 4;
+    collectionGridUi.cellWidth = 128;
+    collectionGridUi.cellHeight = 118;
+    collectionGridUi.horizontalGap = 136;
+    collectionGridUi.verticalGap = 128;
+    collectionGridUi.iconSize = 68;
+    this.collectionGridUi = collectionGridUi;
 
     const list = this.createLabelNode('CollectionList', '', 560, 300, 15, new Color(255, 245, 220, 255));
     list.label.lineHeight = 24;
     panel.addChild(list.node);
-    list.node.setPosition(0, -24, 0);
+    list.node.setPosition(0, -156, 0);
     this.collectionListLabel = list.label;
   }
 
@@ -839,6 +881,24 @@ export class UIManager extends Component {
     tertiaryButton.setPosition(190, -154, 0);
     tertiaryButton.active = false;
 
+    return popup;
+  }
+
+  private createPopupBuilderNode(name: string, request: GenericPopupRequest): Node {
+    const popup = new Node(name);
+    const popupTransform = popup.addComponent(UITransform);
+    popupTransform.setContentSize(UI_ROOT_WIDTH, UI_ROOT_HEIGHT);
+    const builder = popup.addComponent(PopupBuilder);
+    builder.createPopup(request.title, request.body, () => {
+      request.onConfirm?.();
+      if (request.closeOnConfirm !== false) {
+        this.activeGenericPopup = null;
+        const nextRequest = this.popupQueue.shift();
+        if (nextRequest) {
+          this.showGenericPopup(nextRequest);
+        }
+      }
+    });
     return popup;
   }
 

@@ -60,20 +60,20 @@ export class AchievementSystem {
   constructor(private readonly context: AchievementSystemContext) {}
 
   init(): void {
-    EventBus.on(GameEventName.DaySettled, this.handleDaySettled);
-    EventBus.on(GameEventName.OrderCompleted, this.handleOrderCompleted);
-    EventBus.on(GameEventName.ResearchCompleted, this.handleResearchCompleted);
-    EventBus.on(GameEventName.ShopUpgraded, this.handleShopUpgraded);
-    EventBus.on(GameEventName.FarmPlotChanged, this.handleFarmPlotChanged);
+    EventBus.on(GameEventName.DaySettled, this.handleDaySettled, this);
+    EventBus.on(GameEventName.OrderCompleted, this.handleOrderCompleted, this);
+    EventBus.on(GameEventName.ResearchCompleted, this.handleResearchCompleted, this);
+    EventBus.on(GameEventName.ShopUpgraded, this.handleShopUpgraded, this);
+    EventBus.on(GameEventName.FarmPlotChanged, this.handleFarmPlotChanged, this);
     this.evaluateNow();
   }
 
   dispose(): void {
-    EventBus.off(GameEventName.DaySettled, this.handleDaySettled);
-    EventBus.off(GameEventName.OrderCompleted, this.handleOrderCompleted);
-    EventBus.off(GameEventName.ResearchCompleted, this.handleResearchCompleted);
-    EventBus.off(GameEventName.ShopUpgraded, this.handleShopUpgraded);
-    EventBus.off(GameEventName.FarmPlotChanged, this.handleFarmPlotChanged);
+    EventBus.off(GameEventName.DaySettled, this.handleDaySettled, this);
+    EventBus.off(GameEventName.OrderCompleted, this.handleOrderCompleted, this);
+    EventBus.off(GameEventName.ResearchCompleted, this.handleResearchCompleted, this);
+    EventBus.off(GameEventName.ShopUpgraded, this.handleShopUpgraded, this);
+    EventBus.off(GameEventName.FarmPlotChanged, this.handleFarmPlotChanged, this);
   }
 
   evaluateNow(): void {

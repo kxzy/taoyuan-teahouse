@@ -17,6 +17,9 @@ export enum CustomerState {
 
 @ccclass('Customer')
 export class Customer extends Component {
+  private static readonly TEMP_DIRECTION = new Vec3();
+  private static readonly TEMP_POSITION = new Vec3();
+
   @property(Label)
   orderLabel: Label | null = null;
 
@@ -51,6 +54,7 @@ export class Customer extends Component {
   private onRecycleCallback: ((customer: Customer) => void) | null = null;
   private targetPosition: Vec3 | null = null;
   private exitPosition: Vec3 | null = null;
+  private patienceDeadlineAt = 0;
   private lastRenderedState: CustomerState | null = null;
   private lastRenderedPatienceSecond = -1;
   private lastRenderedRemainingCups = -1;
@@ -91,6 +95,9 @@ export class Customer extends Component {
     this.onLostCallback = options.onLost;
     this.onRecycleCallback = options.onRecycle ?? null;
     this.state = this.targetPosition ? CustomerState.WalkingToSeat : CustomerState.Waiting;
+    this.patienceDeadlineAt = this.state === CustomerState.Waiting
+      ? Date.now() + this.patienceSeconds * 1000
+      : 0;
     this.node.active = true;
     this.resetRenderCache();
     this.refreshView(true);
@@ -112,6 +119,7 @@ export class Customer extends Component {
     this.onRecycleCallback = null;
     this.targetPosition = null;
     this.exitPosition = null;
+    this.patienceDeadlineAt = 0;
     this.node.active = false;
     this.resetRenderCache();
     this.applyBubbleState(false, false, false, true);
@@ -125,7 +133,7 @@ export class Customer extends Component {
   update(deltaTime: number): void {
     if (this.state === CustomerState.WalkingToSeat) {
       this.moveTowardTarget(deltaTime, this.targetPosition, () => {
-        this.state = CustomerState.Waiting;
+        this.beginWaiting();
         this.refreshView(true);
       });
       return;
@@ -142,9 +150,10 @@ export class Customer extends Component {
       return;
     }
 
-    this.remainingPatience -= deltaTime;
+    this.syncRemainingPatience();
     if (this.remainingPatience <= 0) {
       this.remainingPatience = 0;
+      this.patienceDeadlineAt = 0;
       this.state = CustomerState.Lost;
       this.refreshView(true);
       this.onLostCallback?.(this);
@@ -160,6 +169,7 @@ export class Customer extends Component {
   }
 
   leave(): void {
+    this.patienceDeadlineAt = 0;
     this.state = CustomerState.Leaving;
     this.refreshView(true);
   }
@@ -175,6 +185,7 @@ export class Customer extends Component {
 
     this.remainingCups = Math.max(0, this.remainingCups - 1);
     if (this.remainingCups <= 0) {
+      this.patienceDeadlineAt = 0;
       this.state = CustomerState.Served;
     }
     this.refreshView(true);
@@ -203,9 +214,9 @@ export class Customer extends Component {
       return;
     }
 
-    const current = this.node.position.clone();
-    const direction = target.clone().subtract(current);
-    const distance = direction.length();
+    const current = this.node.position;
+    Vec3.subtract(Customer.TEMP_DIRECTION, target, current);
+    const distance = Customer.TEMP_DIRECTION.length();
     const step = this.moveSpeed * deltaTime;
 
     if (distance <= step || distance <= 1) {
@@ -214,8 +225,27 @@ export class Customer extends Component {
       return;
     }
 
-    direction.normalize().multiplyScalar(step);
-    this.node.setPosition(current.add(direction));
+    Customer.TEMP_DIRECTION.normalize().multiplyScalar(step);
+    Vec3.add(Customer.TEMP_POSITION, current, Customer.TEMP_DIRECTION);
+    this.node.setPosition(Customer.TEMP_POSITION);
+  }
+
+  private beginWaiting(): void {
+    this.state = CustomerState.Waiting;
+    this.patienceDeadlineAt = Date.now() + this.patienceSeconds * 1000;
+    this.syncRemainingPatience();
+  }
+
+  private syncRemainingPatience(): void {
+    if (this.state !== CustomerState.Waiting) {
+      return;
+    }
+
+    if (this.patienceDeadlineAt <= 0) {
+      this.patienceDeadlineAt = Date.now() + this.remainingPatience * 1000;
+    }
+
+    this.remainingPatience = Math.max(0, (this.patienceDeadlineAt - Date.now()) / 1000);
   }
 
   private refreshView(force = false): void {
