@@ -1,3 +1,4 @@
 library/
 temp/
 local/
+node_modules/

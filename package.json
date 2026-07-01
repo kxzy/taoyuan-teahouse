@@ -6,9 +6,29 @@
     "version": "3.8.8"
   },
   "scripts": {
+    "agent:advance": "node tools/multi-agent.js advance",
+    "agent:claude:ask": "node tools/claude-desktop-bridge.js ask",
+    "agent:claude:review": "node tools/multi-agent.js claude-review",
+    "agent:context": "node tools/multi-agent.js context",
+    "agent:gemini:ask": "node tools/gemini-web-bridge.js ask",
+    "agent:gemini:login": "node tools/gemini-web-bridge.js login",
+    "agent:gemini:planner": "node tools/multi-agent.js gemini-planner",
+    "agent:gemini:qa": "node tools/multi-agent.js gemini-qa",
+    "agent:gemini:review": "node tools/multi-agent.js gemini-review",
+    "agent:intake": "node tools/multi-agent.js intake",
+    "agent:intake:taoyuan": "node tools/multi-agent.js intake-taoyuan",
+    "agent:init": "node tools/multi-agent.js init",
+    "agent:list": "node tools/multi-agent.js list",
+    "agent:summary": "node tools/multi-agent.js summary",
+    "agent:show": "node tools/multi-agent.js show",
+    "agent:handoff": "node tools/multi-agent.js handoff",
+    "agent:set-status": "node tools/multi-agent.js set-status",
+    "agent:note": "node tools/multi-agent.js note",
     "validate:v1-loop": "node tools/validate-v1-loop.js",
     "typecheck:cocos": "\"C:\\ProgramData\\cocos\\editors\\Creator\\3.8.8\\resources\\resources\\3d\\engine\\node_modules\\.bin\\tsc.cmd\" -p tools/tsconfig.codex-check.json --pretty false"
   },
-  "dependencies": {},
+  "dependencies": {
+    "playwright-core": "^1.55.0"
+  },
   "devDependencies": {}
 }

@@ -1,0 +1,143 @@
+{
+  "id": "2026-07-01-顾客排队优化",
+  "title": "顾客排队优化",
+  "status": "done",
+  "currentAgent": "Memory",
+  "goal": "降低高峰期顾客排队堆积，补齐验证和复盘",
+  "scope": {
+    "in": [
+      "降低高峰期顾客排队堆积，补齐验证和复盘",
+      "Clarify impacted gameplay, UI, data, and validation scope before coding."
+    ],
+    "out": [
+      "Unrelated gameplay refactors outside the current request.",
+      "Large architecture rewrites unless explicitly required by the task."
+    ]
+  },
+  "acceptance": [
+    "Planner has written a concrete implementation direction and completion criteria.",
+    "Code, Review, QA, and Memory all have reserved sections in the same task card.",
+    "QA checklist includes repository-standard validation steps where applicable."
+  ],
+  "risks": [
+    "Scene files and gameplay scripts can drift together and cause hidden regressions.",
+    "Manual Cocos preview may still be needed even when script-level validation passes."
+  ],
+  "qaChecks": [
+    "Run validate:v1-loop when gameplay loop or UI flow changes.",
+    "Run typecheck:cocos when TypeScript scripts change.",
+    "Record any manual Creator preview findings in qa.checks."
+  ],
+  "implementationNotes": [
+    "Prefer minimal, repo-aligned changes over introducing a parallel architecture.",
+    "Record deviations explicitly if implementation differs from the original plan."
+  ],
+  "implementation": {
+    "summary": "",
+    "filesTouched": [],
+    "deviations": [],
+    "followUps": []
+  },
+  "review": {
+    "findings": [],
+    "risks": [],
+    "decision": "changes_requested"
+  },
+  "qa": {
+    "checks": [
+      {
+        "name": "Static review of changed files",
+        "status": "pending",
+        "detail": "Review changed scripts and scene/config impact before runtime validation."
+      },
+      {
+        "name": "npm run validate:v1-loop",
+        "status": "pending",
+        "detail": "Run project loop validation after implementation if affected."
+      },
+      {
+        "name": "npm run typecheck:cocos",
+        "status": "pending",
+        "detail": "Run Cocos TypeScript typecheck after implementation if scripts changed."
+      },
+      {
+        "name": "Cocos preview smoke test",
+        "status": "pending",
+        "detail": "Verify core flow in Creator preview when UI, scene, or gameplay logic changes."
+      }
+    ],
+    "summary": "",
+    "blockers": []
+  },
+  "memory": {
+    "decisions": [],
+    "reusableNotes": [],
+    "nextDefaults": [
+      "Use this task card as the single handoff source across Planner, Code, Review, QA, and Memory."
+    ]
+  },
+  "handoffs": [
+    {
+      "at": "2026-06-30T18:09:18.318Z",
+      "from": "Planner",
+      "to": "Code",
+      "summary": "需求已接入，进入实现准备"
+    },
+    {
+      "at": "2026-06-30T18:15:11.968Z",
+      "from": "Code",
+      "to": "Review",
+      "summary": "实现准备完成，进入审查"
+    },
+    {
+      "at": "2026-06-30T18:15:12.372Z",
+      "from": "Review",
+      "to": "QA",
+      "summary": "审查完成，进入验证"
+    },
+    {
+      "at": "2026-06-30T18:15:34.316Z",
+      "from": "QA",
+      "to": "Memory",
+      "summary": "验证记录完成，进入经验沉淀"
+    }
+  ],
+  "history": [
+    {
+      "at": "2026-06-30T18:08:55.826Z",
+      "agent": "Planner",
+      "action": "intake",
+      "detail": "Task created from request: 降低高峰期顾客排队堆积，补齐验证和复盘"
+    },
+    {
+      "at": "2026-06-30T18:09:18.321Z",
+      "agent": "Planner",
+      "action": "handoff",
+      "detail": "to Code: 需求已接入，进入实现准备"
+    },
+    {
+      "at": "2026-06-30T18:15:11.971Z",
+      "agent": "Code",
+      "action": "advance",
+      "detail": "to Review: 实现准备完成，进入审查"
+    },
+    {
+      "at": "2026-06-30T18:15:12.374Z",
+      "agent": "Review",
+      "action": "advance",
+      "detail": "to QA: 审查完成，进入验证"
+    },
+    {
+      "at": "2026-06-30T18:15:34.319Z",
+      "agent": "QA",
+      "action": "advance",
+      "detail": "to Memory: 验证记录完成，进入经验沉淀"
+    },
+    {
+      "at": "2026-06-30T18:16:42.835Z",
+      "agent": "Memory",
+      "action": "advance",
+      "detail": "completed: 验证记录完成，进入经验沉淀"
+    }
+  ]
+}

@@ -34,7 +34,6 @@ export class Workstation extends Component {
   private currentOrder: TeaOrder | null = null;
   private currentTotalSeconds = 0;
   private onTeaReadyCallback: ((result: TeaReadyResult) => void) | null = null;
-  private currentOrderLastUpdatedAt = 0;
   private lastManualFinishAt = 0;
   private lastRenderedQueueText = '';
   private lastRenderedStationLevel = -1;
@@ -80,7 +79,7 @@ export class Workstation extends Component {
     }
 
     const prevProgress = this.getCurrentProgress();
-    this.advanceCurrentOrder(Date.now());
+    this.advanceCurrentOrder(deltaTime);
     const progress = this.getCurrentProgress();
     const skippedPerfectWindow = prevProgress < Workstation.PERFECT_WINDOW_START
       && progress >= Workstation.PERFECT_WINDOW_END;
@@ -114,7 +113,6 @@ export class Workstation extends Component {
     this.queue.length = 0;
     this.currentOrder = null;
     this.currentTotalSeconds = 0;
-    this.currentOrderLastUpdatedAt = 0;
     this.syncQteWindow(0, true);
     this.refreshView(true);
   }
@@ -129,7 +127,6 @@ export class Workstation extends Component {
       return null;
     }
 
-    this.advanceCurrentOrder(now);
     const progress = this.getCurrentProgress();
     if (progress < Workstation.PERFECT_WINDOW_START) {
       return null;
@@ -147,7 +144,6 @@ export class Workstation extends Component {
 
     this.currentOrder = this.queue.shift() ?? null;
     this.currentTotalSeconds = this.currentOrder?.recipe.makeSeconds ?? 0;
-    this.currentOrderLastUpdatedAt = Date.now();
     this.syncQteWindow(0, true);
     this.refreshView(true);
   }
@@ -213,7 +209,6 @@ export class Workstation extends Component {
 
     this.currentOrder = null;
     this.currentTotalSeconds = 0;
-    this.currentOrderLastUpdatedAt = 0;
     this.syncQteWindow(0, true);
     this.onTeaReadyCallback?.(result);
     this.tryStartNext();
@@ -229,27 +224,19 @@ export class Workstation extends Component {
     return Math.max(0, Math.min(1, progress));
   }
 
-  private advanceCurrentOrder(now: number): void {
+  private advanceCurrentOrder(deltaTime: number): void {
     if (!this.currentOrder) {
-      this.currentOrderLastUpdatedAt = 0;
       return;
     }
 
-    if (this.currentOrderLastUpdatedAt <= 0) {
-      this.currentOrderLastUpdatedAt = now;
-      return;
-    }
-
-    const elapsedSeconds = Math.max(0, (now - this.currentOrderLastUpdatedAt) / 1000);
-    if (elapsedSeconds <= 0) {
+    if (deltaTime <= 0) {
       return;
     }
 
     this.currentOrder.remainingSeconds = Math.max(
       0,
-      this.currentOrder.remainingSeconds - elapsedSeconds * this.speedMultiplier,
+      this.currentOrder.remainingSeconds - deltaTime * this.speedMultiplier,
     );
-    this.currentOrderLastUpdatedAt = now;
   }
 
   private syncQteWindow(progress: number, forceInactive = false, forceEmit = false): void {

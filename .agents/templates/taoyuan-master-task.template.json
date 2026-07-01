@@ -1,0 +1,89 @@
+{
+  "id": "replace-with-slug",
+  "title": "replace-with-title",
+  "status": "planning",
+  "currentAgent": "Planner",
+  "goal": "",
+  "scope": {
+    "in": [
+      "Clarify impacted gameplay, UI, scene, resource, and validation scope before coding.",
+      "Keep the implementation aligned with current Cocos Creator 3.8.8 project structure."
+    ],
+    "out": [
+      "Do not rewrite unrelated gameplay systems if a local fix can solve the issue.",
+      "Do not treat validation as complete without recording script checks and preview coverage."
+    ]
+  },
+  "acceptance": [
+    "Planner has written concrete implementation direction and completion criteria.",
+    "Code, Review, QA, and Memory all use the same task card as the handoff source.",
+    "Validation coverage is explicitly recorded, including automated checks and Creator preview needs."
+  ],
+  "risks": [
+    "Gameplay scripts, scene bindings, and UI state can drift together and create hidden regressions.",
+    "Asset or scene changes may pass script checks but still fail in Creator preview or runtime packaging."
+  ],
+  "qaChecks": [
+    "Run validate:v1-loop when gameplay loop or UI flow changes.",
+    "Run typecheck:cocos when TypeScript scripts change.",
+    "Record any manual Creator preview findings in qa.checks."
+  ],
+  "implementationNotes": [
+    "Prefer minimal, repo-aligned changes over introducing a parallel architecture.",
+    "Record deviations explicitly if implementation differs from the original plan.",
+    "Treat gameplay behavior, UI feedback, and preview validation as a single delivery unit."
+  ],
+  "implementation": {
+    "summary": "",
+    "filesTouched": [],
+    "deviations": [],
+    "followUps": []
+  },
+  "assistantDrafts": {
+    "planner": "",
+    "review": "",
+    "qa": "",
+    "notes": []
+  },
+  "review": {
+    "findings": [],
+    "risks": [],
+    "decision": "changes_requested"
+  },
+  "qa": {
+    "checks": [
+      {
+        "name": "Static review of changed files",
+        "status": "pending",
+        "detail": "Review changed scripts, scene bindings, and config impact before runtime validation."
+      },
+      {
+        "name": "npm run validate:v1-loop",
+        "status": "pending",
+        "detail": "Run project loop validation after implementation if gameplay loop or UI flow changed."
+      },
+      {
+        "name": "npm run typecheck:cocos",
+        "status": "pending",
+        "detail": "Run Cocos TypeScript typecheck after implementation if scripts changed."
+      },
+      {
+        "name": "Cocos preview smoke test",
+        "status": "pending",
+        "detail": "Verify the affected gameplay and UI flow in Creator preview."
+      }
+    ],
+    "summary": "",
+    "blockers": []
+  },
+  "memory": {
+    "decisions": [],
+    "reusableNotes": [],
+    "nextDefaults": [
+      "Use this task card as the single handoff source across Planner, Code, Review, QA, and Memory.",
+      "Default to validate:v1-loop plus typecheck:cocos plus Creator preview for feature work."
+    ]
+  },
+  "handoffs": [],
+  "history": []
+}

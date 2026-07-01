@@ -1,5 +1,6 @@
 import {
   _decorator,
+  BlockInputEvents,
   Button,
   Color,
   Component,
@@ -183,7 +184,7 @@ export class UIManager extends Component {
   }
 
   requestMakeRecipe(recipeId: RecipeId): void {
-    EventBus.emit(GameEventName.RequestMakeRecipe, recipeId);
+    EventBus.emit(GameEventName.RequestMakeRecipe, { recipeId });
   }
 
   requestPrimaryAction(actionId: PrimaryActionId): void {
@@ -218,6 +219,10 @@ export class UIManager extends Component {
   private readonly handlePlayEffectEvent = (payload: PlayEffectPayload) => {
     if (payload.type === 'coinFly') {
       this.playCoinFlyAnimation(payload);
+      return;
+    }
+    if (payload.type === 'energyConsume') {
+      this.playEnergyConsumeAnimation();
     }
   };
 
@@ -225,8 +230,9 @@ export class UIManager extends Component {
     this.closeActiveGenericPopup();
   };
 
-  private readonly handleHudMessageEvent = (message: string) => {
-    this.updateLabel(this.messageLabel, message, this.lastMessageText, (next) => {
+  private readonly handleHudMessageEvent = (message: string | { text: string }) => {
+    const text = typeof message === 'string' ? message : message.text;
+    this.updateLabel(this.messageLabel, text, this.lastMessageText, (next) => {
       this.lastMessageText = next;
       if (this.messageLabel) {
         this.messageLabel.fontSize = 12;
@@ -395,8 +401,7 @@ export class UIManager extends Component {
 
   private readonly handleSupplyShopViewModelEvent = (viewModel: SupplyShopViewModel) => {
     if (!viewModel.active) {
-      this.destroyNode(this.activeShopPanel);
-      this.activeShopPanel = null;
+      this.closeSupplyShopPanel();
       return;
     }
 
@@ -406,14 +411,20 @@ export class UIManager extends Component {
         ? instantiate(this.shopPanelPrefab)
         : this.createFallbackShopPanelNode();
       panel.name = 'SupplyShopPanel';
+      if (!panel.getComponent(BlockInputEvents)) {
+        panel.addComponent(BlockInputEvents);
+      }
       this.node.addChild(panel);
-      panel.setSiblingIndex(25000);
+      panel.setSiblingIndex(32000);
       this.activeShopPanel = panel;
       this.setLabelText(panel, 'Title_Label', '补货商店');
       this.configureButton(panel, 'Close_Button', 'Close_Label', '返回经营', () => {
-        this.destroyNode(this.activeShopPanel);
-        this.activeShopPanel = null;
+        this.closeSupplyShopPanel();
       });
+    }
+
+    if (this.activeShopPanel) {
+      this.setLabelText(this.activeShopPanel, 'Close_Label', '返回经营');
     }
 
     if (!this.activeShopPanel) {
@@ -421,7 +432,7 @@ export class UIManager extends Component {
     }
 
     this.bringUiRootToFront();
-    this.activeShopPanel.setSiblingIndex(25000);
+    this.activeShopPanel.setSiblingIndex(32000);
     this.setLabelText(this.activeShopPanel, 'Coin_Label', `当前金币：${viewModel.coins}｜今日采购 ${viewModel.dailyPurchaseCount} 次`);
     this.setLabelText(this.activeShopPanel, 'Message_Label', viewModel.messageText ?? '选择要补充的原料。');
 
@@ -439,6 +450,11 @@ export class UIManager extends Component {
       );
     }
   };
+
+  private closeSupplyShopPanel(): void {
+    this.destroyNode(this.activeShopPanel);
+    this.activeShopPanel = null;
+  }
 
   private readonly handleCollectionViewModelEvent = (viewModel: CollectionViewModel) => {
     if (!this.collectionPanel) {
@@ -492,7 +508,7 @@ export class UIManager extends Component {
 
   private showGenericPopup(request: GenericPopupRequest): void {
     this.bringUiRootToFront();
-    const useSimplePopupBuilder = !this.upgradeUnlockPrefab && !request.secondaryText && !request.tertiaryText;
+    const useSimplePopupBuilder = false;
     const popup = this.upgradeUnlockPrefab
       ? instantiate(this.upgradeUnlockPrefab)
       : useSimplePopupBuilder
@@ -678,7 +694,7 @@ export class UIManager extends Component {
   }
 
   private playCoinFlyAnimation(payload: PlayEffectPayload): void {
-    if (payload.value === undefined) {
+    if (payload.value === undefined || !payload.position) {
       return;
     }
 
@@ -711,6 +727,32 @@ export class UIManager extends Component {
       })
       .start();
     tween(opacity).to(1, { opacity: 0 }).start();
+  }
+
+  private playEnergyConsumeAnimation(): void {
+    const effectNode = new Node('EnergyConsumeText');
+    const effectTransform = effectNode.addComponent(UITransform);
+    effectTransform.setContentSize(140, 36);
+    const opacity = effectNode.addComponent(UIOpacity);
+    opacity.opacity = 255;
+    const label = effectNode.addComponent(Label);
+    label.string = '-1 体力';
+    label.fontSize = 22;
+    label.lineHeight = 26;
+    label.color = new Color(96, 184, 255, 255);
+    const basePosition = this.messageLabel?.node.position ?? new Vec3(0, 210, 0);
+    effectNode.setPosition(basePosition.x, basePosition.y + 26, basePosition.z);
+    this.node.addChild(effectNode);
+
+    tween(effectNode)
+      .to(0.8, { position: new Vec3(basePosition.x, basePosition.y + 70, basePosition.z) })
+      .call(() => {
+        if (effectNode.isValid) {
+          effectNode.destroy();
+        }
+      })
+      .start();
+    tween(opacity).to(0.8, { opacity: 0 }).start();
   }
 
   private buildCollectionPanel(): void {
@@ -774,6 +816,7 @@ export class UIManager extends Component {
       return;
     }
     const button = buttonNode.getComponent(Button) ?? buttonNode.addComponent(Button);
+    buttonNode.off(Button.EventType.CLICK);
     buttonNode.targetOff(this);
     buttonNode.on(Button.EventType.CLICK, handler, this);
     if (updateLabel) {

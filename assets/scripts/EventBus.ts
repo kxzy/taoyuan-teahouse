@@ -106,8 +106,8 @@ export interface HudViewModel {
 }
 
 export interface PlayEffectPayload {
-  type: 'coinFly' | 'emotion';
-  position: Vec3;
+  type: 'coinFly' | 'emotion' | 'energyConsume';
+  position?: Vec3;
   value?: number;
   emotionType?: 'happy' | 'angry';
 }
@@ -149,6 +149,10 @@ export interface WorkstationQteStatePayload {
   windowStart: number;
   windowEnd: number;
   recipeName?: string;
+}
+
+export interface RequestMakeRecipePayload {
+  recipeId: string;
 }
 
 export enum GameEventName {
@@ -207,7 +211,13 @@ export class EventBus {
     if (!listeners) {
       return;
     }
-    const snapshot = [...listeners];
-    snapshot.forEach((listener) => listener.handler.call(listener.target, payload));
+
+    for (let index = listeners.length - 1; index >= 0; index--) {
+      const listener = listeners[index];
+      if (!listener?.handler) {
+        continue;
+      }
+      listener.handler.call(listener.target, payload);
+    }
   }
 }

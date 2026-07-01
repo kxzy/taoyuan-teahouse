@@ -1,0 +1,134 @@
+{
+  "ver": "1.0.27",
+  "importer": "image",
+  "imported": true,
+  "uuid": "da430897-c41d-4501-8c48-bd66170538b6",
+  "files": [
+    ".json",
+    ".png"
+  ],
+  "subMetas": {
+    "6c48a": {
+      "importer": "texture",
+      "uuid": "da430897-c41d-4501-8c48-bd66170538b6@6c48a",
+      "displayName": "card_today_recipe",
+      "id": "6c48a",
+      "name": "texture",
+      "userData": {
+        "wrapModeS": "clamp-to-edge",
+        "wrapModeT": "clamp-to-edge",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 0,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "da430897-c41d-4501-8c48-bd66170538b6",
+        "visible": false
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "f9941": {
+      "importer": "sprite-frame",
+      "uuid": "da430897-c41d-4501-8c48-bd66170538b6@f9941",
+      "displayName": "card_today_recipe",
+      "id": "f9941",
+      "name": "spriteFrame",
+      "userData": {
+        "trimThreshold": 1,
+        "rotated": false,
+        "offsetX": 0,
+        "offsetY": 0,
+        "trimX": 50,
+        "trimY": 10,
+        "width": 220,
+        "height": 84,
+        "rawWidth": 320,
+        "rawHeight": 104,
+        "borderTop": 0,
+        "borderBottom": 0,
+        "borderLeft": 0,
+        "borderRight": 0,
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivotX": 0.5,
+        "pivotY": 0.5,
+        "meshType": 0,
+        "vertices": {
+          "rawPosition": [
+            -110,
+            -42,
+            0,
+            110,
+            -42,
+            0,
+            -110,
+            42,
+            0,
+            110,
+            42,
+            0
+          ],
+          "indexes": [
+            0,
+            1,
+            2,
+            2,
+            1,
+            3
+          ],
+          "uv": [
+            50,
+            94,
+            270,
+            94,
+            50,
+            10,
+            270,
+            10
+          ],
+          "nuv": [
+            0.15625,
+            0.09615384615384616,
+            0.84375,
+            0.09615384615384616,
+            0.15625,
+            0.9038461538461539,
+            0.84375,
+            0.9038461538461539
+          ],
+          "minPos": [
+            -110,
+            -42,
+            0
+          ],
+          "maxPos": [
+            110,
+            42,
+            0
+          ]
+        },
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "da430897-c41d-4501-8c48-bd66170538b6@6c48a",
+        "atlasUuid": "",
+        "trimType": "auto"
+      },
+      "ver": "1.0.12",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "type": "sprite-frame",
+    "fixAlphaTransparencyArtifacts": false,
+    "hasAlpha": true,
+    "redirect": "da430897-c41d-4501-8c48-bd66170538b6@6c48a"
+  }
+}

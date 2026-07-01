@@ -1,0 +1,110 @@
+{
+  "id": "2026-07-01-制作台按钮与顾客节奏优化",
+  "title": "制作台按钮与顾客节奏优化",
+  "status": "planning",
+  "currentAgent": "Planner",
+  "goal": "优化制作台按钮交互，降低高峰期顾客排队压力，并补齐 Creator 预览验证",
+  "scope": {
+    "in": [
+      "优化制作台按钮交互，降低高峰期顾客排队压力，并补齐 Creator 预览验证",
+      "Clarify impacted gameplay, UI, data, and validation scope before coding.",
+      "Review gameplay flow, state transitions, and player-facing pacing around the requested behavior.",
+      "Clarify affected UI states, empty states, button affordances, and feedback timing.",
+      "Identify whether the request needs scene-authored nodes, script bindings, or preview-only adjustments.",
+      "Define concrete repo checks and any manual preview steps needed for acceptance."
+    ],
+    "out": [
+      "Unrelated gameplay refactors outside the current request.",
+      "Large architecture rewrites unless explicitly required by the task.",
+      "Do not rewrite unrelated systems if a local behavior fix can solve the issue.",
+      "Do not restyle unrelated screens outside the requested flow.",
+      "Avoid broad scene cleanup unless it is necessary for the requested behavior.",
+      "Do not claim validation coverage for checks that were not actually run."
+    ]
+  },
+  "acceptance": [
+    "Planner has written a concrete implementation direction and completion criteria.",
+    "Code, Review, QA, and Memory all have reserved sections in the same task card.",
+    "QA checklist includes repository-standard validation steps where applicable.",
+    "Gameplay behavior matches the intended pacing or rule change without breaking the existing loop.",
+    "UI state, visibility, and interactions remain consistent across the affected flow.",
+    "Scene references and runtime bindings stay valid in both script checks and Creator preview.",
+    "Validation steps and remaining gaps are explicitly recorded in the task card."
+  ],
+  "risks": [
+    "Scene files and gameplay scripts can drift together and cause hidden regressions.",
+    "Manual Cocos preview may still be needed even when script-level validation passes.",
+    "Gameplay changes can silently affect income, queue pressure, energy, or recipe progression.",
+    "UI changes can drift from gameplay state and leave stale or misleading on-screen information.",
+    "Scene edits are easy to make visually but can introduce hidden binding regressions.",
+    "A change may look done while still lacking the checks needed to make it trustworthy."
+  ],
+  "qaChecks": [
+    "Run validate:v1-loop when gameplay loop or UI flow changes.",
+    "Run typecheck:cocos when TypeScript scripts change.",
+    "Record any manual Creator preview findings in qa.checks."
+  ],
+  "implementationNotes": [
+    "Prefer minimal, repo-aligned changes over introducing a parallel architecture.",
+    "Record deviations explicitly if implementation differs from the original plan.",
+    "Prefer adjusting the current gameplay flow and data hooks instead of introducing a parallel system.",
+    "Reuse existing UI builders and panel composition patterns before adding new structural layers.",
+    "Minimize scene churn and keep node-binding changes narrowly scoped.",
+    "Treat repository validation scripts and manual preview as first-class deliverables."
+  ],
+  "implementation": {
+    "summary": "",
+    "filesTouched": [],
+    "deviations": [],
+    "followUps": []
+  },
+  "review": {
+    "findings": [],
+    "risks": [],
+    "decision": "changes_requested"
+  },
+  "qa": {
+    "checks": [
+      {
+        "name": "Static review of changed files",
+        "status": "pending",
+        "detail": "Review changed scripts and scene/config impact before runtime validation."
+      },
+      {
+        "name": "npm run validate:v1-loop",
+        "status": "pending",
+        "detail": "Run project loop validation after implementation if affected."
+      },
+      {
+        "name": "npm run typecheck:cocos",
+        "status": "pending",
+        "detail": "Run Cocos TypeScript typecheck after implementation if scripts changed."
+      },
+      {
+        "name": "Cocos preview smoke test",
+        "status": "pending",
+        "detail": "Verify core flow in Creator preview when UI, scene, or gameplay logic changes."
+      }
+    ],
+    "summary": "",
+    "blockers": []
+  },
+  "memory": {
+    "decisions": [
+      "Planner draft auto-detected areas: gameplay, ui, scene, validation"
+    ],
+    "reusableNotes": [],
+    "nextDefaults": [
+      "Use this task card as the single handoff source across Planner, Code, Review, QA, and Memory."
+    ]
+  },
+  "handoffs": [],
+  "history": [
+    {
+      "at": "2026-06-30T18:12:48.901Z",
+      "agent": "Planner",
+      "action": "intake",
+      "detail": "Task created from request: 优化制作台按钮交互，降低高峰期顾客排队压力，并补齐 Creator 预览验证"
+    }
+  ]
+}

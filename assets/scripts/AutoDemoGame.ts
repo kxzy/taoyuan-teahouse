@@ -1,9 +1,10 @@
 import { _decorator, Button, Camera, Canvas, Color, Component, find, game, Game, Graphics, instantiate, Label, Layers, Node, Rect, resources, Size, Sprite, SpriteFrame, Texture2D, Tween, tween, UITransform, Vec3, view, Widget } from 'cc';
+import { BrewPanel } from './BrewPanel';
 import { Customer } from './Customer';
-import { CUSTOMER_TYPES, CustomerTypeId, getLevelConfig, getMaxDemoLevel, getRecipe, IngredientCostConfig, RecipeConfig, RecipeId, RECIPES, TEAHOUSE_DECORATION_VISUALS, TEAHOUSE_FURNITURE, TEAHOUSE_TABLE_FURNITURE, TEAHOUSE_TEXTURE_PATHS, TeahouseDecorationVisualConfig, TeahouseFurnitureConfig, TeahouseTableFurnitureConfig, TeahouseTextureKey } from './GameConfig';
+import { AdditiveId, CUSTOMER_TYPES, CustomerTypeId, getLevelConfig, getMaxDemoLevel, getRecipe, IngredientCostConfig, RecipeConfig, RecipeId, RECIPES, TeaBaseId, TEAHOUSE_DECORATION_VISUALS, TEAHOUSE_FURNITURE, TEAHOUSE_TABLE_FURNITURE, TEAHOUSE_TEXTURE_PATHS, TeahouseDecorationVisualConfig, TeahouseFurnitureConfig, TeahouseTableFurnitureConfig, TeahouseTextureKey, validateSystem } from './GameConfig';
 import { FarmPlotId, getFarmPlotConfig } from './FarmConfig';
 import { FarmManager } from './FarmManager';
-import { CollectionViewModel, DaySettledPayload, EventBus, GameEventName, HudViewModel, MainTabId, OfflineRewardSummary, OrderCompletedPayload, PlayEffectPayload, PrimaryActionId, RequestRevivePayload, ResearchCompletedPayload, ResearchResultSummary, ReviveOfferPayload, ReviveSuccessPayload, ShopUpgradedPayload, SupplyItemId, SupplyShopViewModel, WorkstationQteStatePayload } from './EventBus';
+import { CollectionViewModel, DaySettledPayload, EventBus, GameEventName, HudViewModel, MainTabId, OfflineRewardSummary, OrderCompletedPayload, PlayEffectPayload, PrimaryActionId, RequestMakeRecipePayload, RequestRevivePayload, ResearchCompletedPayload, ResearchResultSummary, ReviveOfferPayload, ReviveSuccessPayload, ShopUpgradedPayload, SupplyItemId, SupplyShopViewModel, WorkstationQteStatePayload } from './EventBus';
 import { NavigationBar } from './NavigationBar';
 import { DevelopedDrinkSave, GameSaveData, IngredientStock, SaveManager, StaffId, StaffMemberSave } from './SaveManager';
 import { SeatManager } from './SeatManager';
@@ -72,6 +73,10 @@ const DEBUG_CONTROLS_DEFAULT_VISIBLE = false;
 const WORKSTATION_SPEED_BY_LEVEL = [1, 1.25, 1.55, 1.9];
 const EXTEND_BUSINESS_SECONDS = 30;
 const WEEK_LENGTH_DAYS = 7;
+// 体力存档接入前的 Mock 数据，后续可迁移到正式 PlayerData。
+const PlayerData = {
+  energy: 30,
+};
 const LONG_TERM_LOG_LIMIT = 14;
 const SPECIAL_REQUEST_BASE_CHANCE = 0.05;
 const SPECIAL_REQUEST_MAX_CHANCE = 0.15;
@@ -82,6 +87,25 @@ const DESIGN_RESOLUTION_WIDTH = 720;
 const DESIGN_RESOLUTION_HEIGHT = 1280;
 const BACKGROUND_SOURCE_WIDTH = 1408;
 const BACKGROUND_SOURCE_HEIGHT = 2503;
+const BREW_UI_ASSET_ROOT = 'image/ui/brew_interface';
+const BREW_UI_ASSETS = {
+  lowerPanel: `${BREW_UI_ASSET_ROOT}/panel_brew_lower_bg/spriteFrame`,
+  recipeCard: `${BREW_UI_ASSET_ROOT}/card_today_recipe/spriteFrame`,
+  teaBaseButton: `${BREW_UI_ASSET_ROOT}/button_tea_base/spriteFrame`,
+  additiveChip: `${BREW_UI_ASSET_ROOT}/chip_additive/spriteFrame`,
+  startBrewButton: `${BREW_UI_ASSET_ROOT}/button_start_brew/spriteFrame`,
+  statusBadge: `${BREW_UI_ASSET_ROOT}/badge_status_jade/spriteFrame`,
+  productTray: `${BREW_UI_ASSET_ROOT}/tray_product_station/spriteFrame`,
+  iconTeaGreen: `${BREW_UI_ASSET_ROOT}/icon_tea_green/spriteFrame`,
+  iconTeaBlack: `${BREW_UI_ASSET_ROOT}/icon_tea_black/spriteFrame`,
+  iconTeaOolong: `${BREW_UI_ASSET_ROOT}/icon_tea_oolong/spriteFrame`,
+  iconAddNone: `${BREW_UI_ASSET_ROOT}/icon_add_none/spriteFrame`,
+  iconAddSugar: `${BREW_UI_ASSET_ROOT}/icon_add_sugar/spriteFrame`,
+  iconAddFlower: `${BREW_UI_ASSET_ROOT}/icon_add_flower/spriteFrame`,
+  iconAddMilk: `${BREW_UI_ASSET_ROOT}/icon_add_milk/spriteFrame`,
+  iconEnergy: `${BREW_UI_ASSET_ROOT}/icon_energy/spriteFrame`,
+  iconQueue: `${BREW_UI_ASSET_ROOT}/icon_queue/spriteFrame`,
+} as const;
 const DECORATION_TIP_BONUS_PER_BEAUTY = 0.001;
 const SAVE_DEBOUNCE_MS = 600;
 const OFFLINE_REWARD_MAX_SECONDS = 60 * 60 * 2;
@@ -295,6 +319,57 @@ function createPanel(name: string, width: number, height: number, color: Color):
   return node;
 }
 
+function applyResourceSprite(node: Node, spriteFramePath: string, width: number, height: number): Sprite {
+  const transform = node.getComponent(UITransform) ?? addUiTransform(node, width, height);
+  transform.setContentSize(width, height);
+  const sprite = node.getComponent(Sprite) ?? node.addComponent(Sprite);
+  sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+  resources.load(spriteFramePath, SpriteFrame, (error, spriteFrame) => {
+    if (error || !spriteFrame) {
+      console.warn(`UI asset load failed: ${spriteFramePath}`, error);
+      return;
+    }
+    sprite.spriteFrame = spriteFrame;
+  });
+  return sprite;
+}
+
+function createAssetPanel(name: string, width: number, height: number, spriteFramePath: string, fallbackColor: Color): Node {
+  const node = createPanel(name, width, height, fallbackColor);
+  applyResourceSprite(node, spriteFramePath, width, height);
+  return node;
+}
+
+function createAssetIcon(name: string, spriteFramePath: string, size: number): Node {
+  const node = new Node(name);
+  applyResourceSprite(node, spriteFramePath, size, size);
+  return node;
+}
+
+function getOrCreateAssetPanel(parent: Node, name: string, width: number, height: number, spriteFramePath: string, fallbackColor: Color): Node {
+  const existed = parent.getChildByName(name);
+  if (existed) {
+    applyResourceSprite(existed, spriteFramePath, width, height);
+    return existed;
+  }
+
+  const node = createAssetPanel(name, width, height, spriteFramePath, fallbackColor);
+  parent.addChild(node);
+  return node;
+}
+
+function getOrCreateAssetIcon(parent: Node, name: string, spriteFramePath: string, size: number): Node {
+  const existed = parent.getChildByName(name);
+  if (existed) {
+    applyResourceSprite(existed, spriteFramePath, size, size);
+    return existed;
+  }
+
+  const node = createAssetIcon(name, spriteFramePath, size);
+  parent.addChild(node);
+  return node;
+}
+
 function createLabel(name: string, text: string, fontSize = 24, color = new Color(60, 45, 30, 255)): Node {
   const node = new Node(name);
   const label = node.addComponent(Label);
@@ -303,6 +378,16 @@ function createLabel(name: string, text: string, fontSize = 24, color = new Colo
   label.lineHeight = fontSize + 8;
   label.color = color;
   return node;
+}
+
+function constrainLabel(node: Node, width: number, height: number): void {
+  const transform = node.getComponent(UITransform) ?? node.addComponent(UITransform);
+  transform.setContentSize(width, height);
+  const label = node.getComponent(Label);
+  if (label) {
+    label.overflow = Label.Overflow.SHRINK;
+    label.enableWrapText = false;
+  }
 }
 
 function createButton(name: string, text: string, width: number, height: number, callback: () => void): Node {
@@ -319,6 +404,54 @@ function createButton(name: string, text: string, width: number, height: number,
 
   node.on(Button.EventType.CLICK, callback);
   return node;
+}
+
+function createAssetButton(name: string, text: string, width: number, height: number, spriteFramePath: string, callback: () => void, fontSize = 13): Node {
+  const node = createAssetPanel(name, width, height, spriteFramePath, new Color(235, 185, 95, 210));
+  const button = node.addComponent(Button);
+  button.transition = Button.Transition.COLOR;
+  button.normalColor = new Color(255, 255, 255, 255);
+  button.pressedColor = new Color(210, 178, 126, 255);
+  button.hoverColor = new Color(255, 246, 210, 255);
+
+  const labelNode = createLabel(`${name}_Label`, text, fontSize, new Color(63, 38, 18, 255));
+  node.addChild(labelNode);
+  constrainLabel(labelNode, width - 18, height - 10);
+  labelNode.setPosition(0, -1, 0);
+
+  node.on(Button.EventType.CLICK, callback);
+  return node;
+}
+
+function getOrCreateAssetButton(parent: Node, name: string, text: string, width: number, height: number, spriteFramePath: string, callback: () => void, fontSize = 13): Node {
+  const existed = parent.getChildByName(name);
+  if (!existed) {
+    const node = createAssetButton(name, text, width, height, spriteFramePath, callback, fontSize);
+    parent.addChild(node);
+    return node;
+  }
+
+  applyResourceSprite(existed, spriteFramePath, width, height);
+  const button = existed.getComponent(Button) ?? existed.addComponent(Button);
+  button.transition = Button.Transition.COLOR;
+  button.normalColor = new Color(255, 255, 255, 255);
+  button.pressedColor = new Color(210, 178, 126, 255);
+  button.hoverColor = new Color(255, 246, 210, 255);
+  existed.off(Button.EventType.CLICK);
+  existed.on(Button.EventType.CLICK, callback);
+
+  let labelNode = existed.getChildByName(`${name}_Label`);
+  if (!labelNode) {
+    labelNode = createLabel(`${name}_Label`, text, fontSize, new Color(63, 38, 18, 255));
+    existed.addChild(labelNode);
+  }
+  const label = labelNode.getComponent(Label) ?? labelNode.addComponent(Label);
+  label.string = text;
+  label.fontSize = fontSize;
+  label.lineHeight = fontSize + 8;
+  label.color = new Color(63, 38, 18, 255);
+  constrainLabel(labelNode, width - 18, height - 10);
+  return existed;
 }
 
 function createProgressBar(name: string, width: number, height: number): Node {
@@ -687,8 +820,27 @@ export class AutoDemoGame extends Component {
   private pendingEndDayTrigger: 'manual' | 'timeout' | null = null;
   private reviveOfferActive = false;
   private reviveUsedToday = false;
-  private readonly handleRequestMakeRecipeEvent = (recipeId: RecipeId) => {
-    this.makeRecipe(recipeId);
+  private readonly handleRequestMakeRecipeEvent = (payload: RecipeId | RequestMakeRecipePayload) => {
+    const recipeId = typeof payload === 'string' ? payload : payload.recipeId;
+    if (PlayerData.energy <= 0) {
+      EventBus.emit(GameEventName.HudMessage, { text: '掌柜的，体力耗尽了！' });
+      return;
+    }
+
+    if (this.workstation?.isFull()) {
+      EventBus.emit(GameEventName.HudMessage, { text: '制作台已满！' });
+      return;
+    }
+
+    const success = this.makeRecipe(recipeId, true);
+    if (!success) {
+      return;
+    }
+
+    this.promoteRecipeToTodayMenu(recipeId);
+    PlayerData.energy = Math.max(0, PlayerData.energy - 1);
+    this.refreshBrewPanelStatus();
+    EventBus.emit(GameEventName.PlayEffect, { type: 'energyConsume' });
   };
   private readonly handleRequestPrimaryActionEvent = (actionId: PrimaryActionId) => {
     if (actionId === 'upgrade') {
@@ -808,6 +960,9 @@ export class AutoDemoGame extends Component {
   private staffTimer = 0;
   private sameRecipeStreak = 0;
   private lastQueuedRecipeId = '';
+  private todayMenuRecipeIds: string[] = [];
+  private dailyMenuSlotLabels: Array<Label | null> = [];
+  private dailyMenuSlotIcons: Array<Node | null> = [];
   private productionRhythmBonus = 0;
   private idlePreparationBonus = 0;
   private workstationIdleSeconds = 0;
@@ -817,7 +972,11 @@ export class AutoDemoGame extends Component {
   private decorationPanel: Node | null = null;
   private decorationSummaryLabel: Label | null = null;
   private decorationButtonLabels: Record<string, Label> = {};
+  private brewEnergyLabel: Label | null = null;
+  private brewQueueLabel: Label | null = null;
+  private brewSpeedLabel: Label | null = null;
   private backgroundNode: Node | null = null;
+  private usesSceneAuthoredBackground = false;
   private safeAreaRoot: Node | null = null;
   private topHudRoot: Node | null = null;
   private mainPlayRoot: Node | null = null;
@@ -828,6 +987,7 @@ export class AutoDemoGame extends Component {
   private exitPosition = new Vec3(360, 235, 0);
 
   onLoad(): void {
+    validateSystem();
     game.on(Game.EVENT_HIDE, this.handleGameHide, this);
     EventBus.on(GameEventName.RequestMakeRecipe, this.handleRequestMakeRecipeEvent, this);
     EventBus.on(GameEventName.RequestPrimaryAction, this.handleRequestPrimaryActionEvent, this);
@@ -916,13 +1076,14 @@ export class AutoDemoGame extends Component {
     const manualBackground = findNodeByName(root, 'bg_teahouse') ?? findNodeByName(root, 'BackgroundImage_Teahouse');
     if (manualBackground) {
       this.backgroundNode = manualBackground;
+      this.usesSceneAuthoredBackground = true;
       manualBackground.setSiblingIndex(0);
-      manualBackground.setPosition(0, 0, 0);
       applyLayerRecursively(manualBackground, Layers.Enum.UI_2D);
     } else {
       const bg = createImageNode('bg_teahouse', 'background', 1408, 2503);
       backgroundLayer.addChild(bg);
       this.backgroundNode = bg;
+      this.usesSceneAuthoredBackground = false;
     }
 
     const safeAreaRoot = getOrCreateManualLayer(root, 'UI_Layer', 10);
@@ -941,7 +1102,7 @@ export class AutoDemoGame extends Component {
     this.decorationVisualRoot = decorationVisualRoot;
 
     const bottomHudRoot = getOrCreateManualLayer(safeAreaRoot, 'Bottom_Panel', 40);
-    clearChildrenByName(bottomHudRoot, ['WorkstationPanel', 'TeaHousePageRoot', 'MainTabBar']);
+    clearChildrenByName(bottomHudRoot, ['WorkstationPanel', 'MainTabBar']);
     this.bottomHudRoot = bottomHudRoot;
 
     const controlLayer = getOrCreateManualLayer(root, 'ControlLayer', 9999);
@@ -965,18 +1126,21 @@ export class AutoDemoGame extends Component {
 
     const levelNode = createLabel('LevelLabel', '第1天  口碑100', 16, new Color(255, 236, 195, 255));
     topBar.addChild(levelNode);
-    levelNode.setPosition(-228, 16, 0);
+    constrainLabel(levelNode, 390, 24);
+    levelNode.setPosition(-132, 16, 0);
     const levelLabel = levelNode.getComponent(Label);
     this.uiManager.levelLabel = levelLabel;
 
     const coinsNode = createLabel('CoinsLabel', '金币 0', 18, new Color(255, 236, 195, 255));
     topBar.addChild(coinsNode);
-    coinsNode.setPosition(228, 16, 0);
+    constrainLabel(coinsNode, 170, 24);
+    coinsNode.setPosition(242, 16, 0);
     const coinsLabel = coinsNode.getComponent(Label);
     this.uiManager.coinsLabel = coinsLabel;
 
     const messageNode = createLabel('MessageLabel', '看订单，点茶饮，自动上茶', 13, new Color(255, 236, 195, 255));
     topBar.addChild(messageNode);
+    constrainLabel(messageNode, 620, 22);
     messageNode.setPosition(0, -16, 0);
     const messageLabel = messageNode.getComponent(Label);
     this.uiManager.messageLabel = messageLabel;
@@ -988,10 +1152,12 @@ export class AutoDemoGame extends Component {
 
     const goalNode = createLabel('GoalLabel', '', 14, new Color(255, 245, 220, 255));
     guidePanel.addChild(goalNode);
+    constrainLabel(goalNode, 610, 22);
     goalNode.setPosition(0, 12, 0);
     this.uiManager.goalLabel = goalNode.getComponent(Label);
 
     const actionHintNode = createLabel('ActionHintLabel', '', 14, new Color(255, 226, 150, 255));
+    constrainLabel(actionHintNode, 610, 22);
     const actionHintLabel = actionHintNode.getComponent(Label);
     if (actionHintLabel) {
       actionHintLabel.lineHeight = 18;
@@ -1007,6 +1173,7 @@ export class AutoDemoGame extends Component {
 
     const ingredientNode = createLabel('IngredientLabel', '', 12, new Color(255, 245, 220, 230));
     ingredientPanel.addChild(ingredientNode);
+    constrainLabel(ingredientNode, 610, 22);
     ingredientNode.setPosition(0, 0, 0);
     this.uiManager.ingredientLabel = ingredientNode.getComponent(Label);
 
@@ -1063,16 +1230,15 @@ export class AutoDemoGame extends Component {
       statusBadge.addChild(statusLabelNode);
       statusLabelNode.setPosition(0, -1, 0);
 
-      if (customSeat && customSeat.parent !== mainPlayRoot) {
-        customSeat.removeFromParent();
-        mainPlayRoot.addChild(customSeat);
-      } else if (!customSeat) {
+      if (!customSeat) {
         mainPlayRoot.addChild(seat);
       }
       if (!customSeat) {
         seat.setPosition(getRestaurantTablePosition(i));
       }
-      seat.setSiblingIndex(i);
+      if (!customSeat) {
+        seat.setSiblingIndex(i);
+      }
       this.seatNodes.push(seat);
       this.seatStatusLabels.push(statusLabelNode.getComponent(Label));
     }
@@ -1126,15 +1292,13 @@ export class AutoDemoGame extends Component {
     settlementLabelNode.setPosition(0, -18, 0);
     this.settlementLabel = settlementLabelNode.getComponent(Label);
 
-    const teahousePageRoot = new Node('TeaHousePageRoot');
-    bottomHudRoot.addChild(teahousePageRoot);
+    const teahousePageRoot = getOrCreateChild(bottomHudRoot, 'TeaHousePageRoot');
     teahousePageRoot.setSiblingIndex(9998);
     this.teahousePageRoot = teahousePageRoot;
 
-    const controlPanel = createPanel('TeaHouseControlPanel', 700, 152, new Color(45, 28, 18, 124));
-    teahousePageRoot.addChild(controlPanel);
+    const controlPanel = getOrCreateAssetPanel(teahousePageRoot, 'TeaHouseControlPanel', 700, 248, BREW_UI_ASSETS.lowerPanel, new Color(45, 28, 18, 150));
     controlPanel.setSiblingIndex(9997);
-    controlPanel.setPosition(0, -478, 0);
+    controlPanel.setPosition(0, -330, 0);
 
     const buttonRows: Array<{ name: string; text: string; x: number; y: number; callback: () => void; role?: 'upgrade' | 'supply' | 'nextDay' | 'extend' | 'help'; width?: number; height?: number }> = [
       { name: 'BtnBuySupplies', text: '补货', x: 160, y: 18, callback: () => this.uiManager?.requestPrimaryAction('supply'), role: 'supply', width: 112, height: 40 },
@@ -1155,6 +1319,8 @@ export class AutoDemoGame extends Component {
     this.farmButtonLabels = {};
     this.staffButtonLabels = {};
     this.decorationButtonLabels = {};
+    this.dailyMenuSlotLabels = [];
+    this.refreshTodayTeaMenu();
     this.debugControlsRoot = null;
     this.debugToggleLabel = null;
 
@@ -1164,6 +1330,7 @@ export class AutoDemoGame extends Component {
     }
     teaButtonContainer.setSiblingIndex(9999);
     teaButtonContainer.setPosition(0, 34, 0);
+    teaButtonContainer.active = false;
     const teaButtonContainerTransform = teaButtonContainer.getComponent(UITransform) ?? teaButtonContainer.addComponent(UITransform);
     teaButtonContainerTransform.setContentSize(660, 92);
     if (this.uiManager) {
@@ -1171,11 +1338,28 @@ export class AutoDemoGame extends Component {
       this.uiManager.refreshTeaButtons(this.getUnlockedStandardRecipes());
     }
 
+    this.buildDailyTeaChoicePanel(controlPanel);
+    this.buildBrewPanel(controlPanel);
+
     for (const config of buttonRows) {
       const button = createButton(config.name, config.text, config.width ?? 128, config.height ?? 46, config.callback);
       controlPanel.addChild(button);
       button.setSiblingIndex(9999);
       button.setPosition(config.x, config.y, 0);
+      if (config.role) {
+        button.setScale(0.72, 0.72, 1);
+      }
+      if (config.role === 'extend') {
+        button.setPosition(-280, -111, 0);
+      } else if (config.role === 'nextDay') {
+        button.setPosition(-165, -111, 0);
+      } else if (config.role === 'help') {
+        button.setPosition(0, -111, 0);
+      } else if (config.role === 'supply') {
+        button.setPosition(165, -111, 0);
+      } else if (config.role === 'upgrade') {
+        button.setPosition(280, -111, 0);
+      }
       const buttonLabel = button.getChildByName(`${config.name}_Label`)?.getComponent(Label) ?? null;
       if (config.role === 'upgrade') {
         this.uiManager?.bindPrimaryButtonLabel('upgrade', buttonLabel);
@@ -1226,6 +1410,10 @@ export class AutoDemoGame extends Component {
 
   private applyBackgroundCover(): void {
     if (!this.backgroundNode) {
+      return;
+    }
+
+    if (this.usesSceneAuthoredBackground) {
       return;
     }
 
@@ -1301,7 +1489,7 @@ export class AutoDemoGame extends Component {
       ui.setContentSize(DESIGN_RESOLUTION_WIDTH, DESIGN_RESOLUTION_HEIGHT);
       const widget = this.debugRailRoot.getComponent(Widget) ?? this.debugRailRoot.addComponent(Widget);
       widget.isAlignRight = true;
-      widget.right = 20;
+      widget.right = -74;
       widget.isAlignVerticalCenter = true;
       widget.verticalCenter = 0;
       widget.updateAlignment();
@@ -1383,7 +1571,8 @@ export class AutoDemoGame extends Component {
       this.backgroundNode.active = useTeahouseBackdrop;
     }
     if (this.topHudRoot) {
-      this.topHudRoot.active = useTeahouseBackdrop;
+      this.topHudRoot.active = true;
+      this.topHudRoot.setSiblingIndex(isFarmPage ? 45 : 20);
     }
     if (this.farmPageBackground) {
       this.farmPageBackground.active = isFarmPage;
@@ -1414,6 +1603,7 @@ export class AutoDemoGame extends Component {
     if (tab === 'staff') this.refreshStaffPanel();
     if (tab === 'research') this.refreshResearchPanel();
     if (tab === 'decoration') this.refreshDecorationPanel();
+    this.refreshSeatVisibility();
     this.refreshStatusLabels();
     this.refreshHud();
   }
@@ -1479,20 +1669,265 @@ export class AutoDemoGame extends Component {
     }
   }
 
+  private buildDailyTeaChoicePanel(parent: Node): void {
+    const panel = getOrCreateChild(parent, 'TodayTeaChoicePanel');
+    const transform = panel.getComponent(UITransform) ?? panel.addComponent(UITransform);
+    transform.setContentSize(660, 68);
+    panel.setSiblingIndex(9999);
+    panel.setPosition(0, 82, 0);
+
+    const titleNode = createLabel('TodayTeaChoiceTitle', '今日茶单', 12, new Color(255, 226, 150, 255));
+    if (!titleNode.parent) {
+      panel.addChild(titleNode);
+    }
+    const titleLabel = titleNode.getComponent(Label);
+    if (titleLabel) {
+      titleLabel.string = '今日茶单';
+      titleLabel.fontSize = 15;
+      titleLabel.color = new Color(255, 229, 160, 255);
+    }
+    constrainLabel(titleNode, 90, 24);
+    titleNode.setPosition(-292, 17, 0);
+
+    this.dailyMenuSlotLabels = [];
+    this.dailyMenuSlotIcons = [];
+    for (let index = 0; index < 4; index += 1) {
+      const button = getOrCreateAssetButton(panel, `TodayTeaSlot_${index + 1}`, '', 128, 44, BREW_UI_ASSETS.recipeCard, () => this.cycleTodayTeaMenuSlot(index), 11);
+      button.setPosition(-205 + index * 136, -8, 0);
+      const icon = getOrCreateAssetIcon(button, `TodayTeaSlot_${index + 1}_Icon`, BREW_UI_ASSETS.iconTeaGreen, 28);
+      icon.setPosition(-44, 0, 0);
+      const label = button.getChildByName(`TodayTeaSlot_${index + 1}_Label`)?.getComponent(Label) ?? null;
+      if (label) {
+        constrainLabel(label.node, 76, 28);
+        label.node.setPosition(18, -1, 0);
+      }
+      this.dailyMenuSlotLabels[index] = label;
+      this.dailyMenuSlotIcons[index] = icon;
+    }
+    this.refreshDailyMenuLabels();
+  }
+
+  private refreshTodayTeaMenu(forceReset = false): void {
+    const unlocked = this.getUnlockedStandardRecipes();
+    if (unlocked.length === 0) {
+      this.todayMenuRecipeIds = [];
+      this.refreshDailyMenuLabels();
+      return;
+    }
+
+    const unlockedIds = new Set(unlocked.map((recipe) => recipe.id));
+    this.todayMenuRecipeIds = forceReset
+      ? []
+      : this.todayMenuRecipeIds.filter((recipeId) => unlockedIds.has(recipeId));
+
+    for (const recipe of unlocked) {
+      if (this.todayMenuRecipeIds.length >= Math.min(4, unlocked.length)) {
+        break;
+      }
+      if (this.todayMenuRecipeIds.indexOf(recipe.id) < 0) {
+        this.todayMenuRecipeIds.push(recipe.id);
+      }
+    }
+    this.refreshDailyMenuLabels();
+  }
+
+  private cycleTodayTeaMenuSlot(slotIndex: number): void {
+    const unlocked = this.getUnlockedStandardRecipes();
+    if (unlocked.length === 0) {
+      return;
+    }
+
+    const currentId = this.todayMenuRecipeIds[slotIndex] ?? unlocked[0].id;
+    const currentIndex = Math.max(0, unlocked.findIndex((recipe) => recipe.id === currentId));
+    for (let offset = 1; offset <= unlocked.length; offset += 1) {
+      const nextRecipe = unlocked[(currentIndex + offset) % unlocked.length];
+      if (this.todayMenuRecipeIds.indexOf(nextRecipe.id) < 0 || nextRecipe.id === currentId) {
+        this.todayMenuRecipeIds[slotIndex] = nextRecipe.id;
+        break;
+      }
+    }
+    this.refreshDailyMenuLabels();
+    this.refreshHud('今日茶单已调整，小二会优先照此排单');
+  }
+
+  private promoteRecipeToTodayMenu(recipeId: string): void {
+    const unlockedIds = new Set(this.getUnlockedStandardRecipes().map((recipe) => recipe.id));
+    if (!unlockedIds.has(recipeId) || this.todayMenuRecipeIds.indexOf(recipeId) >= 0) {
+      return;
+    }
+
+    this.todayMenuRecipeIds = [
+      recipeId,
+      ...this.todayMenuRecipeIds.filter((id) => id !== recipeId),
+    ].slice(0, 4);
+    this.refreshDailyMenuLabels();
+  }
+
+  private refreshDailyMenuLabels(): void {
+    for (let index = 0; index < this.dailyMenuSlotLabels.length; index += 1) {
+      const label = this.dailyMenuSlotLabels[index];
+      const icon = this.dailyMenuSlotIcons[index];
+      const recipe = this.todayMenuRecipeIds[index] ? getRecipe(this.todayMenuRecipeIds[index]) : null;
+      if (!label) {
+        continue;
+      }
+      label.string = recipe ? recipe.name : '待选';
+      label.fontSize = 11;
+      if (icon && recipe) {
+        applyResourceSprite(icon, this.getRecipeIconPath(recipe), 28, 28);
+      }
+    }
+  }
+
+  private getTodayMenuRecipeIds(): string[] {
+    this.refreshTodayTeaMenu();
+    return this.todayMenuRecipeIds;
+  }
+
+  private buildBrewPanel(parent: Node): void {
+    const brewPanelNode = getOrCreateChild(parent, 'BrewPanel');
+    const brewPanelTransform = brewPanelNode.getComponent(UITransform) ?? brewPanelNode.addComponent(UITransform);
+    brewPanelTransform.setContentSize(660, 168);
+    const brewPanel = brewPanelNode.getComponent(BrewPanel) ?? brewPanelNode.addComponent(BrewPanel);
+    brewPanelNode.setSiblingIndex(9999);
+    brewPanelNode.setPosition(0, -34, 0);
+
+    const brewTitleNode = createLabel('BrewPanelTitle', '制茶台', 15, new Color(255, 229, 160, 255));
+    brewPanelNode.addChild(brewTitleNode);
+    constrainLabel(brewTitleNode, 78, 24);
+    brewTitleNode.setPosition(-292, 64, 0);
+
+    const energyBadge = getOrCreateAssetPanel(brewPanelNode, 'BrewEnergyBadge', 118, 34, BREW_UI_ASSETS.statusBadge, new Color(84, 128, 78, 200));
+    energyBadge.setPosition(-176, 62, 0);
+    const energyIcon = getOrCreateAssetIcon(energyBadge, 'BrewEnergyIcon', BREW_UI_ASSETS.iconEnergy, 24);
+    energyIcon.setPosition(-40, 0, 0);
+    const energyLabel = energyBadge.getChildByName('BrewEnergyLabel') ?? createLabel('BrewEnergyLabel', '', 12, new Color(255, 245, 216, 255));
+    if (!energyLabel.parent) {
+      energyBadge.addChild(energyLabel);
+    }
+    constrainLabel(energyLabel, 70, 22);
+    energyLabel.setPosition(18, -1, 0);
+    this.brewEnergyLabel = energyLabel.getComponent(Label);
+
+    const queueBadge = getOrCreateAssetPanel(brewPanelNode, 'BrewQueueBadge', 118, 34, BREW_UI_ASSETS.statusBadge, new Color(84, 128, 78, 200));
+    queueBadge.setPosition(-44, 62, 0);
+    const queueIcon = getOrCreateAssetIcon(queueBadge, 'BrewQueueIcon', BREW_UI_ASSETS.iconQueue, 24);
+    queueIcon.setPosition(-40, 0, 0);
+    const queueLabel = queueBadge.getChildByName('BrewQueueLabel') ?? createLabel('BrewQueueLabel', '', 12, new Color(255, 245, 216, 255));
+    if (!queueLabel.parent) {
+      queueBadge.addChild(queueLabel);
+    }
+    constrainLabel(queueLabel, 70, 22);
+    queueLabel.setPosition(18, -1, 0);
+    this.brewQueueLabel = queueLabel.getComponent(Label);
+
+    const speedBadge = getOrCreateAssetPanel(brewPanelNode, 'BrewSpeedBadge', 128, 34, BREW_UI_ASSETS.statusBadge, new Color(84, 128, 78, 200));
+    speedBadge.setPosition(96, 62, 0);
+    const speedLabel = speedBadge.getChildByName('BrewSpeedLabel') ?? createLabel('BrewSpeedLabel', '', 12, new Color(255, 245, 216, 255));
+    if (!speedLabel.parent) {
+      speedBadge.addChild(speedLabel);
+    }
+    constrainLabel(speedLabel, 104, 22);
+    speedLabel.setPosition(0, -1, 0);
+    this.brewSpeedLabel = speedLabel.getComponent(Label);
+
+    const baseButtons: Array<{ name: string; text: string; base: TeaBaseId; x: number }> = [
+      { name: 'BaseGreenButton', text: '绿茶底', base: TeaBaseId.Green, x: -220 },
+      { name: 'BaseBlackButton', text: '红茶底', base: TeaBaseId.Black, x: 0 },
+      { name: 'BaseOolongButton', text: '乌龙底', base: TeaBaseId.Oolong, x: 220 },
+    ];
+    for (const config of baseButtons) {
+      const button = getOrCreateAssetButton(brewPanelNode, config.name, config.text, 156, 44, BREW_UI_ASSETS.teaBaseButton, () => brewPanel.selectBase(config.base), 13);
+      button.setPosition(config.x, 22, 0);
+      const icon = getOrCreateAssetIcon(button, `${config.name}_Icon`, this.getTeaBaseIconPath(config.base), 30);
+      icon.setPosition(-50, 0, 0);
+      const label = button.getChildByName(`${config.name}_Label`);
+      if (label) {
+        label.setPosition(18, -1, 0);
+      }
+      brewPanel.registerBaseButton(config.base, button);
+    }
+
+    const additiveButtons: Array<{ name: string; text: string; additive: AdditiveId; x: number }> = [
+      { name: 'AddNoneButton', text: '无辅料', additive: AdditiveId.None, x: -278 },
+      { name: 'AddSugarButton', text: '白糖', additive: AdditiveId.Sugar, x: -154 },
+      { name: 'AddFlowerButton', text: '鲜花', additive: AdditiveId.Flower, x: -30 },
+      { name: 'AddMilkButton', text: '牛奶', additive: AdditiveId.Milk, x: 94 },
+    ];
+    for (const config of additiveButtons) {
+      const button = getOrCreateAssetButton(brewPanelNode, config.name, config.text, 98, 34, BREW_UI_ASSETS.additiveChip, () => brewPanel.selectAdditive(config.additive), 12);
+      button.setPosition(config.x, -24, 0);
+      const icon = getOrCreateAssetIcon(button, `${config.name}_Icon`, this.getAdditiveIconPath(config.additive), 22);
+      icon.setPosition(-32, 0, 0);
+      const label = button.getChildByName(`${config.name}_Label`);
+      if (label) {
+        label.setPosition(14, -1, 0);
+      }
+      brewPanel.registerAdditiveButton(config.additive, button);
+    }
+
+    const brewButton = createButton('BrewConfirmButton', '冲泡', 112, 36, () => brewPanel.onBrewClicked());
+    brewPanelNode.addChild(brewButton);
+    applyResourceSprite(brewButton, BREW_UI_ASSETS.startBrewButton, 136, 42);
+    const brewButtonLabel = brewButton.getChildByName('BrewConfirmButton_Label')?.getComponent(Label) ?? null;
+    if (brewButtonLabel) {
+      brewButtonLabel.string = '开始冲泡';
+      brewButtonLabel.fontSize = 13;
+      brewButtonLabel.color = new Color(63, 38, 18, 255);
+    }
+    brewButton.setPosition(238, -24, 0);
+    brewPanel.registerBrewButton(brewButton);
+
+    const tray = getOrCreateAssetPanel(brewPanelNode, 'ProductStationTray', 520, 46, BREW_UI_ASSETS.productTray, new Color(56, 35, 24, 205));
+    tray.setPosition(0, -78, 0);
+    const trayLabel = createLabel('ProductStationTrayLabel', '成品台：空（最多 2 杯，没人点时别囤太久）', 13, new Color(255, 238, 205, 255));
+    tray.addChild(trayLabel);
+    constrainLabel(trayLabel, 460, 24);
+    trayLabel.setPosition(0, -1, 0);
+    this.refreshBrewPanelStatus();
+  }
+
+  private getRecipeIconPath(recipe: RecipeConfig): string {
+    return this.getTeaBaseIconPath(recipe.formula?.base ?? TeaBaseId.Green);
+  }
+
+  private getTeaBaseIconPath(base: TeaBaseId): string {
+    if (base === TeaBaseId.Black) {
+      return BREW_UI_ASSETS.iconTeaBlack;
+    }
+    if (base === TeaBaseId.Oolong) {
+      return BREW_UI_ASSETS.iconTeaOolong;
+    }
+    return BREW_UI_ASSETS.iconTeaGreen;
+  }
+
+  private getAdditiveIconPath(additive: AdditiveId): string {
+    if (additive === AdditiveId.Sugar) {
+      return BREW_UI_ASSETS.iconAddSugar;
+    }
+    if (additive === AdditiveId.Flower) {
+      return BREW_UI_ASSETS.iconAddFlower;
+    }
+    if (additive === AdditiveId.Milk) {
+      return BREW_UI_ASSETS.iconAddMilk;
+    }
+    return BREW_UI_ASSETS.iconAddNone;
+  }
+
   private enqueueRecipe(recipeId: RecipeId): void {
     this.makeRecipe(recipeId);
   }
 
-  private makeRecipe(recipeId: RecipeId): void {
+  private makeRecipe(recipeId: string, consumeEnergy = false): boolean {
     if (this.isDayEnded) {
       this.refreshHud('今天已打烊，点击“新一天”再开始制作');
-      return;
+      return false;
     }
 
     const levelConfig = getLevelConfig(this.saveData.level);
     if (levelConfig.unlockedRecipeIds.indexOf(recipeId) < 0) {
       this.refreshHud('该茶饮尚未解锁，先升级店铺');
-      return;
+      return false;
     }
 
     const recipe = getRecipe(recipeId);
@@ -1500,7 +1935,7 @@ export class AutoDemoGame extends Component {
     if (missingText) {
       this.refreshHud(`${recipe.name} 原料不足：${missingText}`);
       this.openSupplyShop(`${recipe.name} 缺少 ${missingText}，先补货再制作。`, this.getFirstMissingIngredientId(recipe.ingredientCost));
-      return;
+      return false;
     }
 
     const sameRecipeBonus = this.lastQueuedRecipeId === recipe.id && this.sameRecipeStreak < 3 ? 0.1 : 0;
@@ -1512,7 +1947,7 @@ export class AutoDemoGame extends Component {
     const success = this.workstation?.enqueue(runtimeRecipe) ?? false;
     if (!success) {
       this.refreshHud('制作台忙不过来：队列已满，先等一杯完成，优先处理急单');
-      return;
+      return false;
     }
 
     this.consumeIngredients(recipe);
@@ -1528,7 +1963,10 @@ export class AutoDemoGame extends Component {
     this.recordRecipeUnlocked(recipe);
     const queueCount = this.workstation?.getQueueCount() ?? 0;
     const bonusText = totalBonus > 0 ? `，节奏加速 ${Math.round(totalBonus * 100)}%` : '';
-    this.refreshHud(`已加入制作：${recipe.name}（队列 ${queueCount}/3，消耗 ${this.formatIngredientCost(recipe.ingredientCost)}${bonusText}）`);
+    const energyText = consumeEnergy ? `，体力 ${Math.max(0, PlayerData.energy - 1)}` : '';
+    this.refreshHud(`已加入制作：${recipe.name}（队列 ${queueCount}/3，消耗 ${this.formatIngredientCost(recipe.ingredientCost)}${bonusText}${energyText}）`);
+    this.refreshBrewPanelStatus();
+    return true;
   }
 
   private applyOfflineRewards(): void {
@@ -1768,6 +2206,7 @@ export class AutoDemoGame extends Component {
     this.resetCombo();
     this.sameRecipeStreak = 0;
     this.lastQueuedRecipeId = '';
+    this.refreshTodayTeaMenu(true);
     this.workstationIdleSeconds = 0;
     this.spawnTimer = 1;
     this.clearAllCustomers();
@@ -2029,6 +2468,7 @@ export class AutoDemoGame extends Component {
     const level = Math.max(1, this.saveData.workstationLevel || 1);
     this.saveData.workstationLevel = level;
     this.workstation?.setStationLevel(level, this.getWorkstationSpeedMultiplier(level));
+    this.refreshBrewPanelStatus();
   }
 
   private calculateServicePressure(): ServicePressure {
@@ -2515,7 +2955,20 @@ export class AutoDemoGame extends Component {
     if (deliveredMessages.length > 0) {
       message = deliveredMessages.join('；');
     }
+    this.refreshBrewPanelStatus();
     this.refreshHud(message);
+  }
+
+  private refreshBrewPanelStatus(): void {
+    if (this.brewEnergyLabel) {
+      this.brewEnergyLabel.string = `体力 ${PlayerData.energy}`;
+    }
+    if (this.brewQueueLabel) {
+      this.brewQueueLabel.string = `队列 ${this.workstation?.getQueueCount() ?? 0}/3`;
+    }
+    if (this.brewSpeedLabel) {
+      this.brewSpeedLabel.string = `速度 x${this.getWorkstationSpeedMultiplier().toFixed(2)}`;
+    }
   }
 
   private updateReadyTeas(deltaTime: number): void {
@@ -2625,7 +3078,8 @@ export class AutoDemoGame extends Component {
   }
 
   private refreshSeatVisibility(): void {
-    this.seatManager.refreshView(this.saveData.unlockedSeatCount);
+    const visibleSeatCount = this.currentMainTab === 'teahouse' ? this.saveData.unlockedSeatCount : 0;
+    this.seatManager.refreshView(visibleSeatCount);
   }
 
   private refreshDecorationVisuals(): void {
@@ -2668,8 +3122,11 @@ export class AutoDemoGame extends Component {
 
     const levelConfig = getLevelConfig(this.saveData.level);
     const availableRecipeIds = allowedRecipeIds.filter((id) => levelConfig.unlockedRecipeIds.indexOf(id) >= 0);
-    const recipeId = availableRecipeIds.length > 0
-      ? availableRecipeIds[Math.floor(Math.random() * availableRecipeIds.length)]
+    const todayMenuIds = this.getTodayMenuRecipeIds();
+    const menuRecipeIds = availableRecipeIds.filter((id) => todayMenuIds.indexOf(id) >= 0);
+    const recipePool = menuRecipeIds.length > 0 ? menuRecipeIds : availableRecipeIds;
+    const recipeId = recipePool.length > 0
+      ? recipePool[Math.floor(Math.random() * recipePool.length)]
       : levelConfig.unlockedRecipeIds[0];
     return getRecipe(recipeId as RecipeId);
   }
@@ -2942,6 +3399,10 @@ export class AutoDemoGame extends Component {
       unlockLevel: 1,
       makeSeconds: drink.makeSeconds,
       price: drink.price,
+      formula: {
+        base: TeaBaseId.Green,
+        additive: AdditiveId.None,
+      },
       ingredientCost: drink.ingredientCost,
       isDeveloped: true,
       tier: drink.tier,
@@ -3673,14 +4134,17 @@ export class AutoDemoGame extends Component {
     if (candidates.length === 0) {
       return;
     }
+    const todayMenuIds = this.getTodayMenuRecipeIds();
+    const menuCandidates = candidates.filter((customer) => customer.recipe && todayMenuIds.indexOf(customer.recipe.id) >= 0);
+    const queueCandidates = menuCandidates.length > 0 ? menuCandidates : candidates;
     if (waiter.strategy === 'expensive') {
-      candidates.sort((a, b) => (b.recipe?.price ?? 0) - (a.recipe?.price ?? 0));
+      queueCandidates.sort((a, b) => (b.recipe?.price ?? 0) - (a.recipe?.price ?? 0));
     } else if (waiter.strategy === 'queue') {
-      candidates.sort((a, b) => b.remainingCups - a.remainingCups);
+      queueCandidates.sort((a, b) => b.remainingCups - a.remainingCups);
     } else {
-      candidates.sort((a, b) => (a.isUrgent() === b.isUrgent() ? a.remainingPatience - b.remainingPatience : a.isUrgent() ? -1 : 1));
+      queueCandidates.sort((a, b) => (a.isUrgent() === b.isUrgent() ? a.remainingPatience - b.remainingPatience : a.isUrgent() ? -1 : 1));
     }
-    const recipeId = candidates[0].recipe?.id as RecipeId | undefined;
+    const recipeId = queueCandidates[0].recipe?.id as RecipeId | undefined;
     if (!recipeId) {
       return;
     }
@@ -3874,6 +4338,7 @@ export class AutoDemoGame extends Component {
 
   private hideDecorationPanel(): void {
     if (this.decorationPanel) this.decorationPanel.active = false;
+    this.switchMainTab('teahouse');
   }
 
   private buyDecoration(id: string): void {

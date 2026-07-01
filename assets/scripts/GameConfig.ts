@@ -1,10 +1,16 @@
 ﻿export enum RecipeId {
-  GreenTea = 'green_tea',
-  BlackTea = 'black_tea',
-  JasmineTea = 'jasmine_tea',
-  OsmanthusTea = 'osmanthus_tea',
-  PearFruitTea = 'pear_fruit_tea',
-  PeachBrew = 'peach_brew',
+  GreenTea = 'base_green_add_none',
+  GreenSugarTea = 'base_green_add_sugar',
+  BlackTea = 'base_black_add_sugar',
+  BlackPlainTea = 'base_black_add_none',
+  JasmineTea = 'base_green_add_flower',
+  GreenMilkTea = 'base_green_add_milk',
+  BlackFlowerTea = 'base_black_add_flower',
+  OsmanthusTea = 'base_oolong_add_flower',
+  OolongTea = 'base_oolong_add_none',
+  OolongSugarTea = 'base_oolong_add_sugar',
+  PearFruitTea = 'base_black_add_milk',
+  PeachBrew = 'base_oolong_add_milk',
 }
 
 // 资源正在从扁平目录迁移到分组目录，新路径优先，保留旧路径作为兼容回退。
@@ -177,6 +183,22 @@ export enum CustomerTypeId {
   Swordsman = 'swordsman',
 }
 
+export enum TeaBaseId {
+  Green = 'base_green',
+  Black = 'base_black',
+  Oolong = 'base_oolong',
+}
+
+export enum AdditiveId {
+  None = 'add_none',
+  Sugar = 'add_sugar',
+  Flower = 'add_flower',
+  Milk = 'add_milk',
+}
+
+export const TEA_BASE_IDS: TeaBaseId[] = [TeaBaseId.Green, TeaBaseId.Black, TeaBaseId.Oolong];
+export const ADDITIVE_IDS: AdditiveId[] = [AdditiveId.None, AdditiveId.Sugar, AdditiveId.Flower, AdditiveId.Milk];
+
 export interface IngredientCostConfig {
   teaLeaf?: number;
   sugar?: number;
@@ -184,9 +206,15 @@ export interface IngredientCostConfig {
   fruit?: number;
 }
 
+export interface RecipeFormula {
+  base: TeaBaseId;
+  additive: AdditiveId;
+}
+
 export interface RecipeConfig {
   id: string;
   name: string;
+  formula: RecipeFormula;
   unlockLevel: number;
   makeSeconds: number;
   price: number;
@@ -218,8 +246,12 @@ export const MAX_DEMO_LEVEL = 10;
 
 export const RECIPES: RecipeConfig[] = [
   {
-    id: RecipeId.GreenTea,
+    id: buildRecipeId(TeaBaseId.Green, AdditiveId.None),
     name: '山野绿茶',
+    formula: {
+      base: TeaBaseId.Green,
+      additive: AdditiveId.None,
+    },
     unlockLevel: 1,
     makeSeconds: 2.8,
     price: 34,
@@ -228,8 +260,42 @@ export const RECIPES: RecipeConfig[] = [
     },
   },
   {
-    id: RecipeId.BlackTea,
+    id: buildRecipeId(TeaBaseId.Green, AdditiveId.Sugar),
+    name: '甘露绿茶',
+    formula: {
+      base: TeaBaseId.Green,
+      additive: AdditiveId.Sugar,
+    },
+    unlockLevel: 2,
+    makeSeconds: 3.2,
+    price: 48,
+    ingredientCost: {
+      teaLeaf: 1,
+      sugar: 1,
+    },
+  },
+  {
+    id: buildRecipeId(TeaBaseId.Green, AdditiveId.Milk),
+    name: '青乳茶',
+    formula: {
+      base: TeaBaseId.Green,
+      additive: AdditiveId.Milk,
+    },
+    unlockLevel: 4,
+    makeSeconds: 5.6,
+    price: 102,
+    ingredientCost: {
+      teaLeaf: 1,
+      sugar: 1,
+    },
+  },
+  {
+    id: buildRecipeId(TeaBaseId.Black, AdditiveId.Sugar),
     name: '蜜香红茶',
+    formula: {
+      base: TeaBaseId.Black,
+      additive: AdditiveId.Sugar,
+    },
     unlockLevel: 2,
     makeSeconds: 3.8,
     price: 56,
@@ -239,8 +305,41 @@ export const RECIPES: RecipeConfig[] = [
     },
   },
   {
-    id: RecipeId.JasmineTea,
+    id: buildRecipeId(TeaBaseId.Black, AdditiveId.None),
+    name: '原味红茶',
+    formula: {
+      base: TeaBaseId.Black,
+      additive: AdditiveId.None,
+    },
+    unlockLevel: 2,
+    makeSeconds: 3.4,
+    price: 50,
+    ingredientCost: {
+      teaLeaf: 1,
+    },
+  },
+  {
+    id: buildRecipeId(TeaBaseId.Black, AdditiveId.Flower),
+    name: '花香红茶',
+    formula: {
+      base: TeaBaseId.Black,
+      additive: AdditiveId.Flower,
+    },
+    unlockLevel: 4,
+    makeSeconds: 5.6,
+    price: 104,
+    ingredientCost: {
+      teaLeaf: 1,
+      flower: 1,
+    },
+  },
+  {
+    id: buildRecipeId(TeaBaseId.Green, AdditiveId.Flower),
     name: '茉莉清茶',
+    formula: {
+      base: TeaBaseId.Green,
+      additive: AdditiveId.Flower,
+    },
     unlockLevel: 3,
     makeSeconds: 4.8,
     price: 86,
@@ -250,8 +349,12 @@ export const RECIPES: RecipeConfig[] = [
     },
   },
   {
-    id: RecipeId.OsmanthusTea,
+    id: buildRecipeId(TeaBaseId.Oolong, AdditiveId.Flower),
     name: '桂花冻饮',
+    formula: {
+      base: TeaBaseId.Oolong,
+      additive: AdditiveId.Flower,
+    },
     unlockLevel: 5,
     makeSeconds: 8,
     price: 120,
@@ -262,8 +365,41 @@ export const RECIPES: RecipeConfig[] = [
     },
   },
   {
-    id: RecipeId.PearFruitTea,
+    id: buildRecipeId(TeaBaseId.Oolong, AdditiveId.None),
+    name: '岩韵乌龙',
+    formula: {
+      base: TeaBaseId.Oolong,
+      additive: AdditiveId.None,
+    },
+    unlockLevel: 5,
+    makeSeconds: 6.8,
+    price: 112,
+    ingredientCost: {
+      teaLeaf: 1,
+    },
+  },
+  {
+    id: buildRecipeId(TeaBaseId.Oolong, AdditiveId.Sugar),
+    name: '糖香乌龙',
+    formula: {
+      base: TeaBaseId.Oolong,
+      additive: AdditiveId.Sugar,
+    },
+    unlockLevel: 6,
+    makeSeconds: 7.2,
+    price: 132,
+    ingredientCost: {
+      teaLeaf: 1,
+      sugar: 1,
+    },
+  },
+  {
+    id: buildRecipeId(TeaBaseId.Black, AdditiveId.Milk),
     name: '雪梨果茶',
+    formula: {
+      base: TeaBaseId.Black,
+      additive: AdditiveId.Milk,
+    },
     unlockLevel: 7,
     makeSeconds: 10,
     price: 160,
@@ -274,8 +410,12 @@ export const RECIPES: RecipeConfig[] = [
     },
   },
   {
-    id: RecipeId.PeachBrew,
+    id: buildRecipeId(TeaBaseId.Oolong, AdditiveId.Milk),
     name: '桃花酿',
+    formula: {
+      base: TeaBaseId.Oolong,
+      additive: AdditiveId.Milk,
+    },
     unlockLevel: 9,
     makeSeconds: 12,
     price: 240,
@@ -285,6 +425,55 @@ export const RECIPES: RecipeConfig[] = [
     },
   },
 ];
+
+export function buildRecipeId(base: TeaBaseId, additive: AdditiveId): RecipeId {
+  return `${base}_${additive}` as RecipeId;
+}
+
+export function parseRecipeId(recipeId: string): RecipeFormula | null {
+  const parts = recipeId.split('_');
+  if (parts.length !== 4) {
+    return null;
+  }
+
+  const base = `${parts[0]}_${parts[1]}` as TeaBaseId;
+  const additive = `${parts[2]}_${parts[3]}` as AdditiveId;
+  if (TEA_BASE_IDS.indexOf(base) < 0 || ADDITIVE_IDS.indexOf(additive) < 0) {
+    return null;
+  }
+  return { base, additive };
+}
+
+export function getRecipeByFormula(base: TeaBaseId, additive: AdditiveId): RecipeConfig | null {
+  const recipeId = buildRecipeId(base, additive);
+  return RECIPES.find((recipe) => recipe.id === recipeId) ?? null;
+}
+
+export function validateSystem(): boolean {
+  const seen = new Set<string>();
+  for (const recipe of RECIPES) {
+    const parsed = parseRecipeId(recipe.id);
+    if (!parsed) {
+      console.error(`配方 ID 无法解析：${recipe.id}`);
+      return false;
+    }
+    const expectedId = buildRecipeId(recipe.formula.base, recipe.formula.additive);
+    if (recipe.id !== expectedId || parsed.base !== recipe.formula.base || parsed.additive !== recipe.formula.additive) {
+      console.error(`配方 ID 与 formula 不一致：${recipe.id}`);
+      return false;
+    }
+    if (seen.has(recipe.id)) {
+      console.error(`配方 ID 重复：${recipe.id}`);
+      return false;
+    }
+    seen.add(recipe.id);
+  }
+  return true;
+}
+
+if (validateSystem()) {
+  console.log('数据层初始化完毕');
+}
 
 function getUnlockedRecipeIds(level: number): string[] {
   return RECIPES
@@ -401,7 +590,7 @@ export const CUSTOMER_TYPES: CustomerTypeConfig[] = [
   },
 ];
 
-export function getRecipe(id: RecipeId): RecipeConfig {
+export function getRecipe(id: string): RecipeConfig {
   const recipe = RECIPES.find((item) => item.id === id);
   if (!recipe) {
     throw new Error(`Recipe not found: ${id}`);

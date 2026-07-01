@@ -54,7 +54,6 @@ export class Customer extends Component {
   private onRecycleCallback: ((customer: Customer) => void) | null = null;
   private targetPosition: Vec3 | null = null;
   private exitPosition: Vec3 | null = null;
-  private patienceDeadlineAt = 0;
   private lastRenderedState: CustomerState | null = null;
   private lastRenderedPatienceSecond = -1;
   private lastRenderedRemainingCups = -1;
@@ -95,9 +94,6 @@ export class Customer extends Component {
     this.onLostCallback = options.onLost;
     this.onRecycleCallback = options.onRecycle ?? null;
     this.state = this.targetPosition ? CustomerState.WalkingToSeat : CustomerState.Waiting;
-    this.patienceDeadlineAt = this.state === CustomerState.Waiting
-      ? Date.now() + this.patienceSeconds * 1000
-      : 0;
     this.node.active = true;
     this.resetRenderCache();
     this.refreshView(true);
@@ -119,11 +115,17 @@ export class Customer extends Component {
     this.onRecycleCallback = null;
     this.targetPosition = null;
     this.exitPosition = null;
-    this.patienceDeadlineAt = 0;
     this.node.active = false;
+    this.node.setPosition(9999, 9999, 0);
     this.resetRenderCache();
     this.applyBubbleState(false, false, false, true);
     this.updateUrgentBadge(false, true);
+    if (this.orderLabel) {
+      this.orderLabel.string = '';
+    }
+    if (this.urgentBadgeLabel) {
+      this.urgentBadgeLabel.string = '';
+    }
     this.updateOrderLabel('', 'normal', true);
     if (this.patienceBar) {
       this.patienceBar.progress = 0;
@@ -150,10 +152,9 @@ export class Customer extends Component {
       return;
     }
 
-    this.syncRemainingPatience();
+    this.remainingPatience = Math.max(0, this.remainingPatience - deltaTime);
     if (this.remainingPatience <= 0) {
       this.remainingPatience = 0;
-      this.patienceDeadlineAt = 0;
       this.state = CustomerState.Lost;
       this.refreshView(true);
       this.onLostCallback?.(this);
@@ -169,7 +170,6 @@ export class Customer extends Component {
   }
 
   leave(): void {
-    this.patienceDeadlineAt = 0;
     this.state = CustomerState.Leaving;
     this.refreshView(true);
   }
@@ -185,7 +185,6 @@ export class Customer extends Component {
 
     this.remainingCups = Math.max(0, this.remainingCups - 1);
     if (this.remainingCups <= 0) {
-      this.patienceDeadlineAt = 0;
       this.state = CustomerState.Served;
     }
     this.refreshView(true);
@@ -232,20 +231,6 @@ export class Customer extends Component {
 
   private beginWaiting(): void {
     this.state = CustomerState.Waiting;
-    this.patienceDeadlineAt = Date.now() + this.patienceSeconds * 1000;
-    this.syncRemainingPatience();
-  }
-
-  private syncRemainingPatience(): void {
-    if (this.state !== CustomerState.Waiting) {
-      return;
-    }
-
-    if (this.patienceDeadlineAt <= 0) {
-      this.patienceDeadlineAt = Date.now() + this.remainingPatience * 1000;
-    }
-
-    this.remainingPatience = Math.max(0, (this.patienceDeadlineAt - Date.now()) / 1000);
   }
 
   private refreshView(force = false): void {

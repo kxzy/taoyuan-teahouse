@@ -1,0 +1,16 @@
+{
+  "projectName": "桃园茶肆",
+  "repoUrl": "https://github.com/kxzy/taoyuan-teahouse.git",
+  "claudeLocalProject": "C:\\Users\\14911\\Claude\\Projects\\桃园茶肆",
+  "codexRole": "Orchestrate the workflow, write code, run checks, and persist task state while keeping prompts compact.",
+  "geminiHints": [
+    "Use the public GitHub repository as the primary code context.",
+    "Prefer reading the repo link and referenced paths over asking Codex to paste large code blocks.",
+    "Focus on planning and QA drafts; keep responses concise and structured."
+  ],
+  "claudeHints": [
+    "Use the local Claude project context plus the task card as the primary review context.",
+    "Focus on regressions, validation gaps, scene or resource stability, and lifecycle risks.",
+    "Keep review findings compact, actionable, and tied to acceptance gaps."
+  ]
+}

@@ -1,0 +1,289 @@
+{
+  "id": "2026-07-01-桃园茶肆当前开发主线",
+  "title": "桃园茶肆当前开发主线",
+  "status": "done",
+  "currentAgent": "Memory",
+  "goal": "收束制茶界面资源接入、相关脚本联动、多 Agent 协作基线与验证入口",
+  "scope": {
+    "in": [
+      "收束 BrewPanel、AutoDemoGame、UIManager、Workstation 与场景节点之间的联动。",
+      "确认 brew_interface 资源、验证脚本和多 Agent 协作脚本都进入可持续维护状态。",
+      "保持实现与当前 Cocos Creator 3.8.8 项目结构一致。",
+      "补齐自动校验与 Creator 预览验证入口。"
+    ],
+    "out": [
+      "不为当前主线引入与制茶界面无关的大型玩法重构。",
+      "不把未经执行的验证步骤写成已通过结论。",
+      "不扩散到无关场景或无关 UI 页面的大规模重做。"
+    ]
+  },
+  "acceptance": [
+    "制茶界面资源与脚本接入后，主流程在 Creator 预览中不出现明显的资源加载或交互阻断问题。",
+    "当前未提交的制茶界面、验证脚本和多 Agent 基建改动都被纳入同一张主任务卡管理。",
+    "QA 阶段明确记录 validate:v1-loop、typecheck:cocos 与 Creator 预览覆盖情况。",
+    "多 Agent 协作入口可用于后续桃园茶肆功能任务，不需要重新手工搭建流程。"
+  ],
+  "risks": [
+    "Gameplay 脚本、Scene 节点绑定和 UI 状态可能一起漂移，导致隐藏回归。",
+    "资源与 meta 变更可能通过脚本检查，但在 Creator 预览或打包阶段失败。",
+    "制茶界面与顾客节奏联动可能影响订单压力、体力消耗和工作台状态。"
+  ],
+  "qaChecks": [
+    "Run validate:v1-loop when gameplay loop or UI flow changes.",
+    "Run typecheck:cocos when TypeScript scripts change.",
+    "Record any manual Creator preview findings in qa.checks."
+  ],
+  "implementationNotes": [
+    "优先基于当前游戏脚本流和 UI 结构做收束，不引入平行架构。",
+    "如果实现与原计划不一致，要把偏差写入 implementation.deviations。",
+    "把玩法行为、UI 反馈和预览验证作为同一个交付单元处理。",
+    "严格遵循 Cocos Creator 3.8.8 组件生命周期（onLoad, start, update），避免在 onLoad 中跨节点强耦合调用。",
+    "所有茶饮资产（Q 版古风茶具、茶底等）的路径需在全局 Config 脚本中硬编码或通过 Asset Bundle 统一管理，防止 Agent 误改路径。",
+    "验证入口可采用 @property(Button) 挂载至场景的调试面板上，点击后触发 AutoDemoGame 的一步步断言（Assert）校验。"
+  ],
+  "implementation": {
+    "summary": "当前主线围绕 BrewPanel 与制茶界面资源接入展开，同时补齐多 Agent 协作基础设施，便于后续功能迭代和验证收束。",
+    "filesTouched": [
+      "assets/scene/Main.scene",
+      "assets/scripts/AutoDemoGame.ts",
+      "assets/scripts/Customer.ts",
+      "assets/scripts/EventBus.ts",
+      "assets/scripts/GameConfig.ts",
+      "assets/scripts/UIManager.ts",
+      "assets/scripts/Workstation.ts",
+      "assets/scripts/BrewPanel.ts",
+      "assets/resources/image/ui/brew_interface/",
+      "profiles/v2/packages/scene.json",
+      "tools/validate-v1-loop.js",
+      "tools/multi-agent.js",
+      "package.json",
+      "docs/brew_interface_ui_plan.md",
+      "docs/multi-agent-collaboration.md",
+      ".agents/"
+    ],
+    "deviations": [],
+    "followUps": []
+  },
+  "review": {
+    "findings": [
+      "提供 validate:v1-loop 与 typecheck:cocos 的实际运行记录，确认脚本入口可复用且没有依赖本机临时缓存。",
+      "复核 BrewPanel、AutoDemoGame、UIManager、Workstation 之间的事件订阅和解绑，避免场景重载或面板重复打开时出现重复回调。",
+      "确认 brew_interface 资源的场景引用、UUID、meta 与资源路径在 Cocos Creator 3.8.8 重新导入后稳定。",
+      "将多 Agent 协作脚本、文档和验证入口的完成状态纳入同一主任务卡，确保满足任务管理验收要求。",
+      "Creator preview smoke test completed on 2026-07-01: Main.scene rendered correctly, brew_interface resources appeared normally, and the full AutoDemoGame brew request path updated queue and energy badges in runtime."
+    ],
+    "risks": [
+      "未提供实际代码 diff、运行日志或 Creator 预览截图，无法排除编译、资源加载和交互阻断回归。",
+      "制茶界面资源接入可能影响竖屏布局、点击热区、底部导航层级或遮挡关系。",
+      "游戏逻辑、验证脚本、多 Agent 基建和文档同批变更，若出问题回归定位成本较高。",
+      "typecheck:cocos 可能依赖 Windows Cocos 安装路径，跨环境验证仍有不确定性。",
+      "Manual Creator preview has now passed, but serialized scene changes can still carry edge cases that only appear under broader gameplay coverage.",
+      "Scene and resource changes can still behave differently in Cocos Creator than in script-level validation, especially around serialized nodes, UUIDs, and UI layering.",
+      "BrewPanel status refresh touches runtime UI state and may still have edge cases around repeated panel openings, scene reloads, or workstation state changes mid-brew."
+    ],
+    "decision": "approved"
+  },
+  "qa": {
+    "checks": [
+      {
+        "name": "Static review of changed files",
+        "status": "passed",
+        "detail": "Completed on 2026-07-01: reviewed BrewPanel, AutoDemoGame, UIManager, and Workstation wiring; fixed stale brew status badges so energy, queue, and speed now refresh with runtime state."
+      },
+      {
+        "name": "npm run validate:v1-loop",
+        "status": "passed",
+        "detail": "Passed on 2026-07-01: V1.0 loop validation passed with 32 checks."
+      },
+      {
+        "name": "npm run typecheck:cocos",
+        "status": "passed",
+        "detail": "Passed on 2026-07-01 via tools/tsconfig.codex-check.json."
+      },
+      {
+        "name": "Cocos preview smoke test",
+        "status": "passed",
+        "detail": "Passed on 2026-07-01: Creator preview rendered Main.scene, brew_interface resources displayed correctly, runtime handler included refreshBrewPanelStatus, and a full brew request changed BrewEnergyLabel from 体力 30 to 体力 29 while BrewQueueLabel changed from 队列 0/3 to 队列 1/3."
+      }
+    ],
+    "summary": "Static review, validate:v1-loop, typecheck:cocos, and the Cocos Creator preview smoke test all passed on 2026-07-01.",
+    "blockers": []
+  },
+  "memory": {
+    "decisions": [
+      "当前开发主线优先收束制茶界面、相关脚本联动和协作基础设施，再扩展新功能。",
+      "桃园茶肆功能任务默认复用 validate:v1-loop、typecheck:cocos 和 Creator 预览检查。"
+    ],
+    "reusableNotes": [],
+    "nextDefaults": [
+      "Use this task card as the single handoff source across Planner, Code, Review, QA, and Memory.",
+      "Default to validate:v1-loop plus typecheck:cocos plus Creator preview for feature work.",
+      "Default routing: Planner=Gemini draft + Codex writeback, Code=Codex, Review=Claude, QA=Codex with optional Gemini assist, Memory=Codex."
+    ]
+  },
+  "handoffs": [
+    {
+      "at": "2026-07-01T02:24:00.000Z",
+      "from": "Planner",
+      "to": "Code",
+      "summary": "主任务卡已建立，当前未提交改动纳入主线实现范围。"
+    },
+    {
+      "at": "2026-07-01T05:39:07.700Z",
+      "from": "Code",
+      "to": "Review",
+      "summary": "Code implementation, runtime badge refresh, multi-agent tooling, and preview verification are ready for final Review closure."
+    },
+    {
+      "at": "2026-07-01T05:40:24.213Z",
+      "from": "Review",
+      "to": "QA",
+      "summary": "Review approved after static checks plus Creator preview smoke test confirmed brew_interface rendering, queue updates, and energy badge refresh in runtime."
+    },
+    {
+      "at": "2026-07-01T05:40:36.085Z",
+      "from": "QA",
+      "to": "Memory",
+      "summary": "QA passed: validate:v1-loop, typecheck:cocos, and Creator preview smoke test all completed successfully on 2026-07-01."
+    }
+  ],
+  "history": [
+    {
+      "at": "2026-07-01T02:23:00.000Z",
+      "agent": "Planner",
+      "action": "intake",
+      "detail": "Task created from request: 收束制茶界面资源接入、相关脚本联动、多 Agent 协作基线与验证入口"
+    },
+    {
+      "at": "2026-07-01T02:24:00.000Z",
+      "agent": "Planner",
+      "action": "handoff",
+      "detail": "to Code: 主任务卡已建立，当前未提交改动纳入主线实现范围。"
+    },
+    {
+      "at": "2026-06-30T20:43:48.711Z",
+      "agent": "Planner",
+      "action": "gemini-planner",
+      "detail": "Updated planner draft from Gemini web automation."
+    },
+    {
+      "at": "2026-06-30T20:47:36.837Z",
+      "agent": "Planner",
+      "action": "gemini-planner",
+      "detail": "Updated planner draft from Gemini web automation."
+    },
+    {
+      "at": "2026-06-30T20:54:33.236Z",
+      "agent": "Planner",
+      "action": "gemini-planner",
+      "detail": "Updated planner draft from Gemini web automation."
+    },
+    {
+      "at": "2026-06-30T20:56:27.063Z",
+      "agent": "Planner",
+      "action": "gemini-planner",
+      "detail": "Updated planner draft from Gemini web automation."
+    },
+    {
+      "at": "2026-06-30T21:06:01.687Z",
+      "agent": "QA",
+      "action": "gemini-qa",
+      "detail": "Updated QA draft from Gemini web automation."
+    },
+    {
+      "at": "2026-06-30T21:07:57.342Z",
+      "agent": "Review",
+      "action": "note",
+      "detail": "Review 默认改由 Claude/Codex 直接执行；Gemini review 仅保留为备用入口。"
+    },
+    {
+      "at": "2026-06-30T21:12:02.801Z",
+      "agent": "Memory",
+      "action": "note",
+      "detail": "Default multi-agent routing set to Planner=Gemini/Codex, Code=Codex, Review=Claude, QA=Codex, Memory=Codex."
+    },
+    {
+      "at": "2026-06-30T21:35:58.770Z",
+      "agent": "Review",
+      "action": "claude-review",
+      "detail": "Updated review draft from Claude desktop automation."
+    },
+    {
+      "at": "2026-06-30T21:39:51.857Z",
+      "agent": "Review",
+      "action": "claude-review",
+      "detail": "Updated review draft from Claude desktop automation."
+    },
+    {
+      "at": "2026-07-01T05:16:20.358Z",
+      "agent": "QA",
+      "action": "note",
+      "detail": "validate:v1-loop passed with 32 checks and typecheck:cocos passed on 2026-07-01; manual Creator preview still pending."
+    },
+    {
+      "at": "2026-07-01T05:20:32.134Z",
+      "agent": "Review",
+      "action": "note",
+      "detail": "Static review completed: EventBus on/off pairs and workstation touch wiring look symmetric; fixed stale brew status badges for energy, queue, and speed. Manual Creator preview remains the main open risk."
+    },
+    {
+      "at": "2026-07-01T05:21:06.014Z",
+      "agent": "Review",
+      "action": "claude-review",
+      "detail": "Updated review draft from Claude desktop automation."
+    },
+    {
+      "at": "2026-07-01T05:32:44.775Z",
+      "agent": "QA",
+      "action": "note",
+      "detail": "Creator preview launched successfully on 2026-07-01: local preview server returned HTTP 200, Main.scene rendered, and runtime node state showed BrewPanel labels/resources present. Queue badge updated from 0/3 to 1/3 via runtime flow, but the loaded preview bundle still lacked the newest energy-refresh handler, so energy badge verification remains pending a full preview restart/rebuild."
+    },
+    {
+      "at": "2026-07-01T05:37:00.027Z",
+      "agent": "QA",
+      "action": "note",
+      "detail": "Cocos preview smoke test passed on 2026-07-01: Creator preview rendered Main.scene, brew_interface resources displayed correctly, runtime handler included refreshBrewPanelStatus, and full brew request changed BrewEnergyLabel from 体力 30 to 体力 29 while BrewQueueLabel changed from 队列 0/3 to 队列 1/3."
+    },
+    {
+      "at": "2026-07-01T05:37:00.102Z",
+      "agent": "Review",
+      "action": "note",
+      "detail": "Runtime preview follow-up closed on 2026-07-01: Creator preview verified brew_interface rendering, queue updates, energy updates, and the refreshed status badges through the full AutoDemoGame brew request path."
+    },
+    {
+      "at": "2026-07-01T05:39:07.710Z",
+      "agent": "Code",
+      "action": "advance",
+      "detail": "to Review: Code implementation, runtime badge refresh, multi-agent tooling, and preview verification are ready for final Review closure."
+    },
+    {
+      "at": "2026-07-01T05:40:24.224Z",
+      "agent": "Review",
+      "action": "advance",
+      "detail": "to QA: Review approved after static checks plus Creator preview smoke test confirmed brew_interface rendering, queue updates, and energy badge refresh in runtime."
+    },
+    {
+      "at": "2026-07-01T05:40:36.089Z",
+      "agent": "QA",
+      "action": "advance",
+      "detail": "to Memory: QA passed: validate:v1-loop, typecheck:cocos, and Creator preview smoke test all completed successfully on 2026-07-01."
+    },
+    {
+      "at": "2026-07-01T05:40:46.266Z",
+      "agent": "Memory",
+      "action": "advance",
+      "detail": "completed: Completed mainline closure: brew UI integration, collaboration tooling, and verification baseline are now established for follow-up 桃园茶肆 feature work."
+    }
+  ],
+  "assistantDrafts": {
+    "planner": "{\n\"summary\": \"针对《桃园茶肆》微信小游戏进行当前开发主线的收束，重点解决制茶界面（BrewPanel）的资源接入、自动化演示（AutoDemoGame）以及核心管理器（UIManager、Workstation）之间的脚本联动，同时确立多 Agent 协作的验证基线，补齐 Cocos Creator 3.8.8 预览环境下的自动校验入口。\",\n\"scopeIn\": [\n\"收束 BrewPanel、AutoDemoGame、UIManager、Workstation 与场景节点之间的联动。\",\n\"确认 brew_interface 资源、验证脚本和多 Agent 协作脚本都进入可持续维护状态。\",\n\"保持实现与当前 Cocos Creator 3.8.8 项目结构一致。\",\n\"补齐自动校验与 Creator 预览验证入口。\"\n],\n\"scopeOut\": [\n\"不为当前主线引入与制茶界面无关的大型玩法重构。\",\n\"不把未经执行的验证步骤写成已通过结论。\",\n\"不扩散到无关场景或无关 UI 页面的大规模重做。\"\n],\n\"acceptance\": [\n\"制茶界面资源与脚本接入后，主流程在 Creator 预览中不出现明显的资源加载或交互阻断问题。\",\n\"当前未提交的制茶界面、验证脚本和多 Agent 基建改动都被纳入同一张主任务卡管理。\",\n\"QA 阶段明确记录 validate:v1-loop、typecheck:cocos 与 Creator 预览覆盖情况。\",\n\"多 Agent 协作入口可用于后续桃园茶肆功能任务，不需要重新手工搭建流程。\"\n],\n\"risks\": [\n\"Gameplay 脚本、Scene 节点绑定和 UI 状态可能一起漂移，导致隐藏回归。\",\n\"资源与 meta 变更可能通过脚本检查，但在 Creator 预览或打包阶段失败。\",\n\"制茶界面与顾客节奏联动可能影响订单压力、体力消耗和工作台状态。\"\n],\n\"implementationNotes\": [\n\"严格遵循 Cocos Creator 3.8.8 组件生命周期（onLoad, start, update），避免在 onLoad 中跨节点强耦合调用。\",\n\"所有茶饮资产（Q 版古风茶具、茶底等）的路径需在全局 Config 脚本中硬编码或通过 Asset Bundle 统一管理，防止 Agent 误改路径。\",\n\"验证入口可采用 @property(Button) 挂载至场景的调试面板上，点击后触发 AutoDemoGame 的一步步断言（Assert）校验。\"\n]\n}",
+    "review": "{\"findings\":[\"Complete the pending Cocos preview smoke test and record the result in qa.checks; one acceptance item explicitly depends on Creator preview coverage.\",\"If preview passes, update the task card to close the stale Creator-preview follow-up so review state matches QA state.\",\"During preview, exercise open/close BrewPanel, brew button interaction, queue updates, energy changes, and workstation speed changes to confirm the newly refreshed status badges do not regress runtime state.\",\"During preview, verify brew_interface resources render after a clean Creator reload/reimport and that no scene UUID/meta references are broken.\"],\"risks\":[\"Creator preview remains the only unclosed validation gate, so resource-loading or interaction-blocking regressions may still exist despite static checks and typecheck passing.\",\"Scene and resource changes can still behave differently in Cocos Creator than in script-level validation, especially around serialized nodes, UUIDs, and UI layering.\",\"BrewPanel status refresh touches runtime UI state and may still have edge cases around repeated panel openings, scene reloads, or workstation state changes mid-brew.\"],\"decision\":\"needs_followup\"}",
+    "notes": [
+      "Gemini planner returned non-JSON content; raw draft preserved.",
+      "Gemini planner returned non-JSON content; raw draft preserved.",
+      "Gemini planner returned non-JSON content; raw draft preserved.",
+      "Claude review returned non-JSON content; raw draft preserved."
+    ],
+    "qa": "JSON\n{\n  \"task_title\": \"桃园茶肆当前开发主线\",\n  \"goal\": \"收束制茶界面资源接入、相关脚本联动、多 Agent 协作基线与验证入口\",\n  \"current_status\": \"in_progress\",\n  \"current_agent\": \"Code\",\n  \"files_touched\": [\n    \"assets/scene/Main.scene\",\n    \"assets/scene/BrewPanel.scene\",\n    \"assets/scripts/AutoDemoGame.ts\",\n    \"assets/scripts/Customer.ts\",\n    \"assets/scripts/EventBus.ts\",\n    \"assets/scripts/GameConfig.ts\",\n    \"assets/scripts/UIManager.ts\",\n    \"assets/scripts/Workstation.ts\",\n    \"assets/scripts/BrewPanel.ts\",\n    \"assets/resources/image/brew_interface/\",\n    \"profiles/v2/packages/scener.json\",\n    \"tools/validate-v1-loop.js\",\n    \"tools/multi-agent.js\",\n    \"package.json\",\n    \"docs/brew_interface_ops.md\",\n    \"docs/multi-agent-collaboration.md\"\n  ],\n  \"current_scope_in\": [\n    \"收束 BrewPanel、AutoDemoGame、UIManager、Workstation 与场景节点之间的联动。\",\n    \"确认 brew_interface 资源、验证脚本和多 Agent 协作脚本都进入可持续维护状态。\",\n    \"保持实现与当前 Cocos Creator 3.8.8 项目结构一致。\",\n    \"补齐自动校验与 Creator 预览验证入口。\"\n  ],\n  \"acceptance\": [\n    \"制茶界面资源与脚本接入后，主流程在 Creator 预览中不出现明显的资源加载或交互阻断问题。\",\n    \"当前未提交的制茶界面、验证脚本和多 Agent 基建改动都被纳入同一张主任务卡管理。\",\n    \"QA 阶段明确记录 validate:v1-loop、typecheck:cocos 与 Creator 预览覆盖情况。\",\n    \"多 Agent 协作入口可用于后续桃园茶肆功能 tasks，不需要重新手工搭建流程。\"\n  ],\n  \"current_scope_out\": [\n    \"不为当前主线引入与制茶界面无关的大型玩法重构。\",\n    \"不把未经执行的验证步骤写成已通过状态。\"\n  ],\n  \"risks\": [\n    \"Gameplay 脚本、Scene 节点绑定和 UI 状态可能一起漂移，导致隐藏回归。\",\n    \"资源与 meta 变更可能通过脚本检查，但在 Creator 预览或打包阶段失败。\",\n    \"制茶界面与顾客节奏联动可能影响订单压力、体力消耗 and 工作台状态。\"\n  ],\n  \"checkers\": [\n    {\n      \"name\": \"Static review of changed files\",\n      \"status\": \"pending\",\n      \"detail\": \"Review changed scripts, scene bindings, config impact, and multi-agent orchestration changes.\"\n    },\n    {\n      \"name\": \"npm run validate:v1-loop\",\n      \"status\": \"pending\",\n      \"detail\": \"Verify local validation loop passes without configuration drift.\"\n    },\n    {\n      \"name\": \"npm run typecheck:cocos\",\n      \"status\": \"pending\",\n      \"detail\": \"Run full TypeScript types check after implementation to ensure no architecture drift or gaps between scripts and game.\"\n    },\n    {\n      \"name\": \"Cocos preview smoke test\",\n      \"status\": \"pending\",\n      \"detail\": \"Review Cocos preview smoke test status after execution and check against the task acceptance criteria.\"\n    }\n  ],\n  \"blockers\": [],\n  \"implementation_deviations\": [],\n  \"follow_ups\": [\n    \"补全 Creator 预览验证结果并回填 qa.checklists。\",\n    \"根据试玩结果决定是否继续微调顾客节奏、状态徽章和制茶按钮反馈。\"\n  ],\n  \"summary\": \"当前主线的校验器与后续跟进流程已完全对齐。新增了 `typecheck:cocos` 与 `Cocos preview smoke test` 两个核心把关节点，同时明确了后续测试通过后的数据回填（qa.checklists）与基于试玩反馈的 UI 细节微调计划，进入上线前的最后闭环验证阶段。\"\n}"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "id": "replace-with-slug",
+  "title": "replace-with-title",
+  "status": "planning",
+  "currentAgent": "Planner",
+  "goal": "",
+  "scope": {
+    "in": [],
+    "out": []
+  },
+  "acceptance": [],
+  "risks": [],
+  "qaChecks": [],
+  "implementationNotes": [],
+  "implementation": {
+    "summary": "",
+    "filesTouched": [],
+    "deviations": [],
+    "followUps": []
+  },
+  "assistantDrafts": {
+    "planner": "",
+    "review": "",
+    "qa": "",
+    "notes": []
+  },
+  "review": {
+    "findings": [],
+    "risks": [],
+    "decision": "changes_requested"
+  },
+  "qa": {
+    "checks": [],
+    "summary": "",
+    "blockers": []
+  },
+  "memory": {
+    "decisions": [],
+    "reusableNotes": [],
+    "nextDefaults": []
+  },
+  "handoffs": [],
+  "history": []
+}

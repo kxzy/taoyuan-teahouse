@@ -1,0 +1,51 @@
+{
+  "id": "2026-06-30-多agent协作基线",
+  "title": "多Agent协作基线",
+  "status": "planning",
+  "currentAgent": "Planner",
+  "goal": "多Agent协作基线",
+  "scope": {
+    "in": [],
+    "out": []
+  },
+  "acceptance": [],
+  "risks": [],
+  "qaChecks": [],
+  "implementationNotes": [],
+  "implementation": {
+    "summary": "",
+    "filesTouched": [],
+    "deviations": [],
+    "followUps": []
+  },
+  "review": {
+    "findings": [],
+    "risks": [],
+    "decision": "changes_requested"
+  },
+  "qa": {
+    "checks": [],
+    "summary": "",
+    "blockers": []
+  },
+  "memory": {
+    "decisions": [],
+    "reusableNotes": [],
+    "nextDefaults": []
+  },
+  "handoffs": [],
+  "history": [
+    {
+      "at": "2026-06-30T18:05:25.790Z",
+      "agent": "Planner",
+      "action": "init",
+      "detail": "Task created"
+    },
+    {
+      "at": "2026-06-30T18:05:49.552Z",
+      "agent": "Memory",
+      "action": "note",
+      "detail": "初始化完成，可作为后续协作模板"
+    }
+  ]
+}
